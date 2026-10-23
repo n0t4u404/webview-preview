@@ -1,0 +1,52 @@
+{
+	"name": "webview-preview",
+	"version": "0.0.1",
+	"description": "Open your UI in the engine your desktop app really runs on (WebKitGTK, Edge/WebView2, WebKit), drive it with steps and save PNG snapshots.",
+	"license": "MIT",
+	"author": "n0t4u404",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/n0t4u404/webview-preview.git"
+	},
+	"keywords": [
+		"tauri",
+		"wails",
+		"webview",
+		"webkitgtk",
+		"webview2",
+		"screenshot",
+		"visual-testing",
+		"playwright"
+	],
+	"type": "module",
+	"main": "./src/index.mjs",
+	"types": "./src/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./src/index.d.ts",
+			"default": "./src/index.mjs"
+		}
+	},
+	"bin": {
+		"webview-preview": "./bin/webview-preview.mjs"
+	},
+	"files": [
+		"bin",
+		"src",
+		"AGENTS.md"
+	],
+	"engines": {
+		"node": ">=18"
+	},
+	"peerDependencies": {
+		"playwright-core": "^1.40.0"
+	},
+	"peerDependenciesMeta": {
+		"playwright-core": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"playwright-core": "^1.64.1"
+	}
+}
