@@ -27,6 +27,9 @@
 			"default": "./src/index.mjs"
 		}
 	},
+	"imports": {
+		"#src/*": "./src/*"
+	},
 	"bin": {
 		"webview-preview": "./bin/webview-preview.mjs"
 	},
