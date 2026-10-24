@@ -4,7 +4,11 @@ import path from "node:path";
 import { loadConfig } from "#src/core/config.mjs";
 
 const DURATION = /^(\d+)(m|h|d)$/;
-const UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 }
+const UNIT_MS = {
+	m: 60_000,
+	h: 3_600_000,
+	d: 86_400_000
+}
 
 const parseDuration = value => {
 	const match = DURATION.exec(String(value));

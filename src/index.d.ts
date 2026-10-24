@@ -1,0 +1,86 @@
+export type Engine = "auto" | "webkitgtk" | "msedge" | "chrome" | "chromium" | "webkit";
+
+export type Step =
+	| `js:${string}`
+	| `jsnow:${string}`
+	| `wait:${number}`
+	| `waitfor:${string}`
+	| `measure:${string}`
+	| `snap:${string}`
+	| `print:${string}`
+	| `resize:${number}x${number}`
+	| `key:${string}`
+	| `type:${string}`
+	| `hover:${string}`
+	| `click:${string}`;
+
+export interface ServerOptions {
+	command: string;
+	port: number;
+	host?: string;
+	cwd?: string;
+	readyTimeoutMs?: number;
+}
+
+export interface PreviewConfig {
+	baseUrl?: string;
+	server?: ServerOptions;
+	engine?: Engine;
+	size?: `${number}x${number}`;
+	out?: string;
+	prefix?: string;
+	scale?: number;
+	init?: InitEntry | InitEntry[];
+	mock?: Record<string, MockResponse>;
+	logRequests?: boolean;
+	headed?: boolean;
+	keepStorage?: boolean;
+	waitTimeout?: number;
+	snapMargin?: number;
+	compare?: boolean;
+	updateBaseline?: boolean;
+	baseline?: string;
+	maxDiffPixels?: number;
+	compareTolerance?: number;
+}
+
+export interface MockResponse {
+	status?: number;
+	json?: unknown;
+	body?: string;
+	headers?: Record<string, string>;
+	delayMs?: number;
+}
+
+export type InitEntry = string | { file: string }
+
+export interface PreviewOptions extends PreviewConfig {
+	target?: string;
+	steps?: Step[] | string[];
+	initFile?: string | string[];
+	mockFile?: string | string[];
+	config?: string | false;
+	log?: { info: (message: string) => void; error: (message: string) => void }
+}
+
+export interface PreviewResult {
+	engine: Exclude<Engine, "auto">;
+	url: string;
+	saved: string[];
+	failed: boolean;
+}
+
+export declare const ENGINES: Engine[];
+export declare const REQUESTS_KEY: "__webviewPreviewRequests";
+export declare function resolveUrl(target: string, baseUrl?: string): string;
+export declare function preview(options?: PreviewOptions): Promise<PreviewResult>;
+export declare function defineConfig(config: PreviewConfig): PreviewConfig;
+export interface CleanOptions {
+	config?: string | false;
+	out?: string;
+	baseline?: string;
+	olderThan?: string;
+	dryRun?: boolean;
+}
+
+export declare function cleanSnapshots(options?: CleanOptions): Promise<{ removed: string[]; out: string }>;
