@@ -31,7 +31,7 @@
 		"#src/*": "./src/*"
 	},
 	"bin": {
-		"webview-preview": "./bin/webview-preview.mjs"
+		"webview-preview": "bin/webview-preview.mjs"
 	},
 	"files": [
 		"bin",
