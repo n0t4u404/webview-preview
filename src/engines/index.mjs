@@ -6,9 +6,9 @@ export const ENGINES = ["auto", "webkitgtk", "msedge", "chrome", "chromium", "we
 export const resolveEngine = engine => {
 	if (!ENGINES.includes(engine)) throw new Error(`Unknown engine "${engine}". Engines: ${ENGINES.join(", ")}`);
 	if (engine !== "auto") return engine;
+	if (isWebkitGtkAvailable()) return "webkitgtk";
 	if (process.platform === "win32") return "msedge";
 	if (process.platform === "darwin") return "webkit";
-	if (isWebkitGtkAvailable()) return "webkitgtk";
 	throw new Error("No engine found for auto: install WebKitGTK for Python (python3-gi, gir1.2-webkit2-4.1) or pass --engine chrome / chromium");
 }
 

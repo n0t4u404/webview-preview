@@ -1,0 +1,624 @@
+# webview-preview
+
+See your UI the way your desktop app really renders it. `webview-preview` opens a page in the **same engine your app
+runs on** — WebKitGTK on Linux, Edge (the WebView2 engine) on Windows, WebKit on macOS — runs a list of steps
+(click, type, wait, measure) and saves PNG snapshots.
+
+It is made for apps built on a system webview: **Tauri**, **Wails**, **Neutralinojs**. Their UI looks right in Chrome
+during development and then breaks in the real window — a header that stops sticking, a font that falls back, a
+backdrop blur that renders nothing, a date picker that looks nothing like the design. With `webview-preview` you
+(or an AI agent working on your code) can check the real engine from the command line, without building and
+starting the app.
+
+```sh
+npx webview-preview https://example.com snap:home
+# → .webview-preview/webkitgtk-home.png  (on Linux)
+```
+
+- [Which engine matches my app](#which-engine-matches-my-app)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Config file](#config-file)
+- [Steps](#steps)
+- [Command line](#command-line)
+- [JavaScript API](#javascript-api)
+- [Login, backend and other things outside the page](#login-backend-and-other-things-outside-the-page)
+- [Running a Tauri UI outside Tauri](#running-a-tauri-ui-outside-tauri)
+- [Comparing with a baseline](#comparing-with-a-baseline)
+- [Cleaning up snapshots](#cleaning-up-snapshots)
+- [Recipes](#recipes)
+- [Troubleshooting](#troubleshooting)
+- [For AI agents](#for-ai-agents)
+
+## Which engine matches my app
+
+| Your app runs on | Engine it uses | `--engine` | How close |
+|---|---|---|---|
+| Tauri / Wails on **Linux** | WebKitGTK | `webkitgtk` | The same library your app loads — exact |
+| Tauri / Wails on **Windows** | WebView2 (Edge, Chromium) | `msedge` | The same browser engine as WebView2 |
+| Tauri / Wails on **macOS** | WKWebView (WebKit) | `webkit` | Playwright's WebKit build — close, not the system one |
+| Electron, or just Chrome | Chromium | `chrome` / `chromium` | Exact for Chrome |
+
+`--engine auto` (the default) picks the first row that fits the current computer: `webkitgtk` on Linux, `msedge` on
+Windows, `webkit` on macOS.
+
+To check another platform's engine from your machine, pass it explicitly — for example `--engine chrome` on Linux
+gives you a Chromium picture close to what Windows users see.
+
+## Install
+
+```sh
+npm i -D webview-preview
+```
+
+Then the engine for your system.
+
+### Linux — WebKitGTK
+
+WebKitGTK is driven through Python (GObject introspection). Install the bindings once:
+
+```sh
+# Debian, Ubuntu, Mint
+sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1
+
+# Fedora
+sudo dnf install python3-gobject gtk3 webkit2gtk4.1
+
+# Arch
+sudo pacman -S python-gobject gtk3 webkit2gtk-4.1
+```
+
+These are the same `webkit2gtk-4.1` libraries Tauri 2 needs, so on a Tauri dev machine they are usually there already.
+Check:
+
+```sh
+python3 -c "import gi; gi.require_version('WebKit2', '4.1'); print('ok')"
+```
+
+The page renders **off-screen** — no window shows up — but GTK still needs a display connection (under Wayland it uses
+XWayland). On a server or CI without one, wrap the command in `xvfb-run`. Pass `--headed` to watch a real window.
+
+### Windows — Edge
+
+```sh
+npm i -D playwright-core
+```
+
+Microsoft Edge is already installed on Windows 10 and 11; nothing else to download. Runs headless — no window shows.
+
+### macOS — WebKit
+
+```sh
+npm i -D playwright-core
+npx playwright install webkit
+```
+
+### Chrome or Chromium (any system)
+
+`--engine chrome` uses your installed Google Chrome (`playwright-core` needed). `--engine chromium` uses Playwright's
+own build: `npx playwright install chromium`.
+
+## Quick start
+
+A public page:
+
+```sh
+npx webview-preview https://example.com snap:home
+```
+
+Your app's dev server — say Vite on port 5173:
+
+```sh
+npx webview-preview http://localhost:5173 "js:document.querySelector('button').click()" snap:after-click
+```
+
+Each `snap:<name>` saves `<out>/<engine>-<name>.png` and prints its path. Each `print:<expression>` prints a value.
+Exit code is `0` when every step ran and `1` otherwise.
+
+## Config file
+
+Put the things you repeat into `webview-preview.config.mjs` (or `.js`, `.json`) in the folder you run the command
+from. Then you pass only a route and steps:
+
+```js
+// webview-preview.config.mjs
+import { defineConfig } from "webview-preview";
+
+export default defineConfig({
+	baseUrl: "http://localhost:5173/#",
+	server: {
+		command: "npx vite --port 5173 --strictPort",
+		port: 5173
+	},
+	size: "1200x650",
+	out: ".tmp/preview"
+});
+```
+
+```sh
+npx webview-preview /settings snap:settings
+```
+
+| Field | What it does | Default |
+|---|---|---|
+| `baseUrl` | Put in front of a route that is not a full URL: `baseUrl + "/settings"`. End it with `#` for hash routers. | — |
+| `server.command` | Started (through the shell) when nothing listens on `server.port`, stopped after the run. Already running? It is reused and left alone. | — |
+| `server.port` | Port to wait for. | — |
+| `server.host` | Host to wait on. | `localhost` |
+| `server.cwd` | Folder for `server.command`. | the config's folder |
+| `server.readyTimeoutMs` | How long to wait for the port. | `30000` |
+| `engine` | See [engines](#which-engine-matches-my-app). | `auto` |
+| `size` | Window size in CSS pixels, `WxH`. | `1200x650` |
+| `out` | Snapshot folder, relative to the config's folder. | `.webview-preview` |
+| `prefix` | File name prefix. | `<engine>-` |
+| `scale` | Device pixel ratio for Playwright engines (`2` = HiDPI). WebKitGTK: off-screen snapshots are 1×, `--headed` ones follow your screen. | `1` |
+| `headed` | WebKitGTK: show a real window instead of rendering off-screen. | `false` |
+| `snapMargin` | Room in CSS pixels around `snap:name@selector`, so focus rings and shadows fit. | `8` |
+| `waitTimeout` | How long `waitfor:` waits, ms. | `10000` |
+| `keepStorage` | WebKitGTK: keep `localStorage`, cookies and cache between runs. By default every run starts clean, like Playwright engines always do. | `false` |
+| `compare` / `updateBaseline` / `baseline` / `maxDiffPixels` / `compareTolerance` | See [Comparing with a baseline](#comparing-with-a-baseline). | — |
+| `init` | Code that runs **before the page's own scripts**, on every load: a string, `{ file: "path" }`, or a list of them. See [below](#1-init--set-things-up-before-the-app-starts). | — |
+| `mock` | Answers for `fetch` / `XMLHttpRequest` requests: `{ "GET /api/me": { json: { … } } }`. See [below](#2-mock--answer-backend-requests). | — |
+| `logRequests` | List every `fetch` / `XMLHttpRequest` request in `window.__webviewPreviewRequests` (also on whenever `mock` is set). | `false` |
+
+Command-line options win over the config file.
+
+### Examples
+
+**Tauri + Vite** (Tauri's default dev port):
+
+```js
+export default {
+	baseUrl: "http://localhost:1420",
+	server: { command: "npx vite --port 1420 --strictPort", port: 1420 }
+}
+```
+
+**Wails** (`wails dev` serves the frontend on 34115):
+
+```js
+export default {
+	baseUrl: "http://localhost:34115",
+	server: { command: "wails dev", port: 34115, readyTimeoutMs: 120000 }
+}
+```
+
+**A built site from a folder:**
+
+```js
+export default {
+	baseUrl: "http://localhost:4173",
+	server: { command: "npx vite preview --port 4173 --strictPort", port: 4173 }
+}
+```
+
+## Steps
+
+Steps run one after another, after the page has loaded and settled for 1.5 s.
+
+| Step | What it does |
+|---|---|
+| `js:<code>` | Runs JavaScript in the page, then waits 700 ms so animations and re-renders finish. |
+| `jsnow:<code>` | Runs JavaScript and goes on at once — for measuring something right after an action. |
+| `wait:<ms>` | Waits. |
+| `waitfor:<selector>` | Waits until a matching element is **visible and has stopped moving** — same position, size and opacity in two checks 50 ms apart, so an element that slides or fades in is caught at its final place. Gives up after `--wait-timeout` (10 s) with an error. |
+| `waitfor:!<selector>` | Waits until no matching element is visible — a spinner or skeleton is gone. |
+| `snap:<name>` | Saves a PNG of the window. |
+| `snap:<name>@<selector>` | Saves only the element matched by the CSS selector, plus `snapMargin` (8 px) around it. |
+| `key:<key>` | Presses a key with the real keyboard: `Tab`, `Shift+Tab`, `Enter`, `Escape`, `ArrowDown`, `Control+a`, `x`. Keys: a character or `Tab Enter Escape Backspace Delete Insert Space Home End PageUp PageDown ArrowUp ArrowDown ArrowLeft ArrowRight F1–F12`; modifiers: `Shift Control Alt Meta`. |
+| `type:<text>` | Types the text key by key (any language). Click or focus a field first. |
+| `hover:<selector>` | Moves the real mouse to the middle of the element (scrolls it into view first). `:hover` styles and `mouseover` fire. |
+| `click:<selector>` | Clicks the middle of the element with the real mouse — focus moves, `:active` and `:focus` apply like for a person. |
+| `print:<expression>` | Prints the value: strings as they are, DOM elements as their HTML (first 200 characters), everything else as JSON. Promises are not awaited. |
+| `measure:<selector>` | Prints one line about the element: how many match, position and size, margin / padding / border, visible or hidden, display, opacity, font, colours and text. |
+| `resize:<W>x<H>` | Resizes the window. |
+
+### Selectors
+
+Every step that takes a selector (`waitfor`, `measure`, `click`, `hover`, `snap:name@…`) accepts:
+
+- **CSS**: `[role=dialog]`, `button[type=submit]`, `[class*=card]` (stable part of a hashed CSS-module class);
+- **text**: `text=Save` — the innermost element whose whole text (spaces collapsed) is exactly `Save`. Handy for
+  buttons, tabs and options; for a snapshot of the whole control prefer a CSS selector, because `text=` finds the
+  label inside it.
+
+When several elements match, the steps pick what a person would see: the first **visible** one (has a size, not
+`visibility: hidden`, no fully transparent ancestor) and, for `click` / `hover` / `snap`, preferably the one that is
+**on top** at its centre — not a copy hidden behind a dialog or inside a closed menu.
+
+A failing `js:` or `print:` writes `js failed: …` / `print failed: …` to stderr and the run goes on. A selector that
+matches nothing (or a hidden element) in `snap@`, `hover:` or `click:` writes an error, the run goes on, and the exit
+code becomes `1`.
+
+**`js:` vs the real input steps.** `js:document.querySelector('button').click()` runs the click handler, but no mouse
+moves and no key is pressed: no `:hover`, no focus change, no `:focus-visible`. `click:`, `hover:`, `key:` and `type:`
+go through the engine's real input path (GTK events in WebKitGTK, Playwright's mouse and keyboard elsewhere), so
+focus moves on `Tab`, `:hover` styles apply and focus rings are painted — as for a person. The two engines produce the
+same DOM events: `Shift+Tab` gives `keydown` `Shift`, then `Tab` with `shiftKey: true`.
+
+Quote steps in the shell — they contain spaces, brackets and quotes:
+
+```sh
+npx webview-preview / \
+  "js:document.querySelector('[data-test=open]').click()" \
+  "print:document.querySelectorAll('[role=dialog]').length" \
+  snap:dialog
+```
+
+On Windows PowerShell use the same double quotes; inside them, keep JavaScript strings in single quotes.
+
+## Command line
+
+```
+webview-preview [route-or-url] [steps...] [options]
+```
+
+| Option | |
+|---|---|
+| `--engine <name>` | `auto`, `webkitgtk`, `msedge`, `chrome`, `chromium`, `webkit` |
+| `--size <WxH>` | Window size |
+| `--out <dir>` | Snapshot folder |
+| `--prefix <text>` | File name prefix |
+| `--scale <n>` | Device pixel ratio (Playwright engines) |
+| `--headed` | WebKitGTK: show a real window |
+| `--snap-margin <px>` | Room around `snap:name@selector` |
+| `--wait-timeout <ms>` | How long `waitfor:` waits |
+| `--keep-storage` | WebKitGTK: keep storage between runs |
+| `--compare` / `--update-baseline` | Compare snapshots with baselines / replace the baselines |
+| `--baseline <dir>` / `--max-diff-pixels <n>` / `--compare-tolerance <n>` | Baseline folder, allowed difference |
+| `--base-url <url>` | Base for routes |
+| `--init <code>` | Run code before the page's scripts (repeatable) |
+| `--init-file <file>` | Same, from a file (repeatable) |
+| `--mock-file <file>` | Mocks from a `.json` or `.mjs` file (repeatable, added to the config's `mock`) |
+| `--log-requests` | Only list requests, answer nothing |
+| `--config <file>` | Use this config file |
+| `--no-config` | Ignore config files |
+| `-h`, `--help` / `-v`, `--version` | |
+
+Add it to `package.json` so everyone runs it the same way:
+
+```json
+{
+	"scripts": {
+		"preview:ui": "webview-preview"
+	}
+}
+```
+
+```sh
+npm run preview:ui -- /settings snap:settings
+```
+
+## JavaScript API
+
+```js
+import { preview } from "webview-preview";
+
+const result = await preview({
+	target: "/settings",
+	steps: ["js:document.querySelector('#dark').click()", "snap:dark"],
+	engine: "auto",
+	log: { info: line => lines.push(line), error: console.error }
+});
+
+result.engine; // "webkitgtk"
+result.saved;  // ["/abs/path/.webview-preview/webkitgtk-dark.png"]
+result.failed; // false
+```
+
+`preview()` reads the config file the same way the CLI does; pass `config: false` to skip it or `config: "path"` to
+choose one. Types are included.
+
+## Login, backend and other things outside the page
+
+A real app rarely shows the screen you want straight away: it checks a session and sends you to a login page, it
+loads data from a server that may not be running, it calls the desktop side (Tauri's `invoke`). Do **not** add
+"skip login" switches to the app for this — sooner or later such a switch ships in a release, and that is a hole.
+Change what the page *receives* instead, only for the preview run:
+
+| What stands in the way | Use |
+|---|---|
+| A session or token kept in `localStorage`, `sessionStorage`, cookies | [`init`](#1-init--set-things-up-before-the-app-starts) |
+| Requests to your backend (`fetch`, `axios`, `XMLHttpRequest`) | [`mock`](#2-mock--answer-backend-requests) |
+| You don't know yet what the app requests | [`--log-requests`](#3-find-out-what-the-app-requests) |
+| Desktop APIs (Tauri `invoke`, window controls) | [`init`](#1-init--set-things-up-before-the-app-starts) with a stub, see [Tauri](#running-a-tauri-ui-outside-tauri) |
+| Login that lives only in memory, or a flow you want to click through | steps or helpers: `js:preview.signIn()` |
+
+### 1. `init` — set things up before the app starts
+
+`init` code runs in the page **before any of its scripts**, on every load and reload. Whatever it puts in place, the
+app finds there on start — as if the user had logged in yesterday.
+
+```js
+// webview-preview.config.mjs
+export default {
+	baseUrl: "http://localhost:5173",
+	init: [
+		"localStorage.setItem('token', 'preview-token')",
+		{ file: "preview/session.js" }
+	]
+}
+```
+
+```js
+// preview/session.js — a file is easier for anything longer than a line
+localStorage.setItem("user", JSON.stringify({ id: 1, nickname: "bodya", role: "admin" }));
+document.cookie = "session=preview; path=/";
+```
+
+From the command line: `--init "<code>"` and `--init-file <file>`, both repeatable, added after the config's `init`.
+
+- Each entry runs in its own block: `const` inside does not leak. To share something, put it on `window`.
+- An entry that throws does not stop the run: you get `init failed: <entry>: <message>` before the first step.
+- File paths in the config are relative to the config's folder; on the command line, to the current folder.
+
+### 2. `mock` — answer backend requests
+
+`mock` replaces `fetch` and `XMLHttpRequest` in the page (from `init`, before the app starts) and answers the requests
+that match. Everything else goes to the network as usual.
+
+```js
+export default {
+	baseUrl: "http://localhost:5173",
+	init: "localStorage.setItem('token', 'preview-token')",
+	mock: {
+		"GET /api/me": { json: { nickname: "bodya", role: "admin" } },
+		"GET /api/instances": { json: [{ id: 1, name: "Survival" }, { id: 2, name: "Creative" }] },
+		"GET /api/instances/*": { json: { id: 1, name: "Survival", players: 12 } },
+		"POST /api/login": { status: 401, json: { error: "wrong password" } },
+		"DELETE /api/instances/*": { status: 204 },
+		"/api/news": { json: [], delayMs: 1500 },
+		"GET https://api.example.com/v1/**": { json: { ok: true } }
+	}
+}
+```
+
+**Keys** — `"METHOD path"` or just `"path"` for any method.
+
+- The path is compared with the request's path; the query string is ignored unless the key has a `?`.
+- `*` matches one path segment (`/api/items/*` → `/api/items/42`), `**` matches any number (`/api/**`).
+- A key starting with `http://` / `https://` matches the full address (another origin).
+- The first matching key wins.
+
+**Answers** — an object with any of:
+
+| Field | |
+|---|---|
+| `json` | Body as JSON, `content-type: application/json` is added |
+| `body` | Body as text (instead of `json`) |
+| `status` | HTTP status, default `200` |
+| `headers` | Extra response headers |
+| `delayMs` | Answer after this many milliseconds — for loading states |
+
+Keep big mocks in a file: `--mock-file preview/mocks.json` (or `.mjs` with `export default { … }`). Files add to the
+config's `mock`; for the same key, the later one wins.
+
+**Use it to test the unhappy paths too:** a `500` for the error message, `delayMs: 3000` for the skeleton, an empty
+list for the empty state, a `401` for the expired session.
+
+### 3. Find out what the app requests
+
+Before writing mocks, look at what the screen asks for:
+
+```sh
+npx webview-preview /dashboard --log-requests wait:2000 "print:__webviewPreviewRequests.join('\n')"
+```
+
+```
+GET /api/me -> network
+GET /api/instances?limit=20 -> network
+POST /api/telemetry -> network
+```
+
+With `mock` set, the same list shows which requests were answered: `GET /api/me -> mock 200`. A request still marked
+`-> network` that fails is the next one to mock.
+
+### What `mock` does not cover
+
+`WebSocket` and `EventSource`, requests made by service workers, `<img>` / `<script>` / CSS loads, and anything your
+desktop side does by itself (a Tauri command that calls a server from Rust). For desktop calls, stub the bridge in
+`init`; for the rest, run the real service locally.
+
+## Running a Tauri UI outside Tauri
+
+Your Tauri frontend calls `invoke` and window APIs. Outside the app there is no Tauri, so those calls fail — and the
+screen you want to see may never render.
+
+**Quick way — a stub in `init`.** `@tauri-apps/api` talks to `window.__TAURI_INTERNALS__`; define it before the app
+starts and every `invoke` gets your answer:
+
+```js
+// preview/tauri.js
+const answers = { app_version: "0.0.1", get_settings: { theme: "dark" } }
+
+window.__TAURI_INTERNALS__ = {
+	invoke: (command, args) => Promise.resolve(answers[command] ?? null),
+	transformCallback: () => 0,
+	metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } }
+}
+```
+
+```js
+// webview-preview.config.mjs
+export default {
+	baseUrl: "http://localhost:1420",
+	server: { command: "npx vite --port 1420 --strictPort", port: 1420 },
+	init: { file: "preview/tauri.js" }
+}
+```
+
+**Bigger apps — a preview entry page.** When you also want helpers (sign in, switch language, go offline) and typed
+stubs, give the preview its own entry:
+
+1. **A stub** — set before anything imports `@tauri-apps/api`:
+
+   ```ts
+   // src/preview/tauri-stub.ts
+   const answers: Record<string, unknown> = { app_version: "0.0.1" }
+
+   Object.assign(window, {
+   	__TAURI_INTERNALS__: {
+   		invoke: (command: string) => Promise.resolve(answers[command] ?? null),
+   		transformCallback: () => 0,
+   		metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } }
+   	}
+   });
+   ```
+
+2. **An entry** that renders your app after the stub:
+
+   ```ts
+   // src/preview/index.tsx
+   import "./tauri-stub";
+   import { createRoot } from "react-dom/client";
+   import { App } from "../app";
+
+   createRoot(document.getElementById("root")!).render(<App />);
+   ```
+
+   plus `src/preview/index.html` that loads it. With Vite, add the page to `build.rollupOptions.input` only if you
+   want it in builds — the dev server serves it either way.
+
+3. **Helpers** for states that are tedious to reach with clicks — signing in, switching language, going offline:
+
+   ```ts
+   Object.assign(window, {
+   	preview: {
+   		signIn: () => { /* fill the form, submit */ },
+   		language: (code: string) => i18n.changeLanguage(code)
+   	}
+   });
+   ```
+
+   ```sh
+   npx webview-preview /settings "js:preview.signIn()" wait:3000 snap:settings
+   ```
+
+4. **Config:**
+
+   ```js
+   export default {
+   	baseUrl: "http://localhost:1420/src/preview/index.html#",
+   	server: { command: "npx vite --port 1420 --strictPort", port: 1420 }
+   }
+   ```
+
+Real Rust is not involved, so anything that depends on it shows what the stub answers. That is the trade-off for
+checking a screen in seconds.
+
+## Comparing with a baseline
+
+Save how a screen looks once, then let every later run tell you whether it changed:
+
+```sh
+npx webview-preview /settings snap:settings "snap:menu@[role=menu]" --compare
+```
+
+- **First run**: no baseline yet → the snapshots are copied to `webview-preview-baseline/` (next to the config).
+  Commit that folder.
+- **Next runs**: each snapshot is compared pixel by pixel with the baseline of the same name:
+
+  ```
+  compare webkitgtk-settings.png: same
+  compare webkitgtk-menu.png: 499 px differ (0.06%) → .webview-preview/webkitgtk-menu.diff.png
+  ```
+
+  The `.diff.png` shows the snapshot in grey with the changed pixels in red. More than `maxDiffPixels` changed
+  (default `0`) → exit code `1`.
+- **The change is intended**: `--update-baseline` replaces the baselines with this run's snapshots.
+
+Snapshots differ between engines and screen scales, so the engine is part of the file name (`webkitgtk-…`,
+`msedge-…`) and each engine has its own baselines. `compareTolerance` (default `2` of 255 per channel) ignores
+invisible rounding noise; raise it a little if antialiasing differs between machines.
+
+## Cleaning up snapshots
+
+Snapshots pile up in the snapshot folder. Clear them when you no longer need them:
+
+```sh
+npx webview-preview clean                  # delete every *.png in the snapshot folder
+npx webview-preview clean --dry-run        # only list what would be deleted
+npx webview-preview clean --older-than 2h  # only files older than 2 hours (30m, 7d …)
+```
+
+`clean` reads the same config (`out`, `baseline`) as a normal run. It deletes only `*.png` files directly in the
+snapshot folder (including `.diff.png`), never the baselines, and refuses to run when the snapshot folder is the
+project folder, your home folder, the disk root or the baseline folder.
+
+## Recipes
+
+**Same screen in every engine you ship to** — compare side by side:
+
+```sh
+for engine in webkitgtk chrome; do npx webview-preview /settings --engine $engine snap:settings; done
+```
+
+**Different window sizes:**
+
+```sh
+npx webview-preview / snap:wide resize:900x500 wait:300 snap:narrow
+```
+
+**Measure instead of looking** — sizes and positions are more reliable than eyes:
+
+```sh
+npx webview-preview / "print:JSON.stringify(document.querySelector('header').getBoundingClientRect())"
+```
+
+**Type into a React-controlled input** (setting `.value` alone does not reach React):
+
+```sh
+"js:const input = document.querySelector('input[name=email]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'a@b.c'); input.dispatchEvent(new Event('input', { bubbles: true }))"
+```
+
+**Keyboard path through a form** — check the focus order and that the ring is not clipped:
+
+```sh
+npx webview-preview /signup "click:input[name=email]" type:me@example.com key:Tab type:secret key:Tab "print:document.activeElement.textContent" "snap:submit@button[type=submit]"
+```
+
+**A flow, step by step, the way a person does it** — no fixed waits:
+
+```sh
+npx webview-preview / "click:text=Sign in" "waitfor:[role=dialog]" "click:input[name=email]" type:me@example.com \
+  key:Enter "waitfor:!text=Signing in…" "waitfor:text=Dashboard" "measure:[data-test=sidebar]" snap:dashboard
+```
+
+**Hover state of one element:**
+
+```sh
+npx webview-preview / "hover:[data-test=card]" wait:300 "snap:card-hover@[data-test=card]"
+```
+
+More of these — animations frame by frame, measuring, getting past login — in [AGENTS.md](./AGENTS.md).
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `WebKitGTK engine needs Linux with python3-gi and WebKit2 4.1` | Install the [Linux packages](#linux--webkitgtk). |
+| `This engine needs playwright-core` | `npm i -D playwright-core`. |
+| `Executable doesn't exist` (Playwright) | `npx playwright install webkit` (or `chromium`); for `msedge` / `chrome` install the browser itself. |
+| `Server did not open port …` | The `server.command` failed or uses another port. Run it by hand to see why; raise `readyTimeoutMs` for slow starts. |
+| `"/route" is not a full URL` | Set `baseUrl` in the config or pass `--base-url`. |
+| Blank snapshot | The page needs more time or threw on start: add `wait:2000`, and `print:document.body.innerHTML.length`. |
+| `timed out after 30000 ms` (WebKitGTK) | A run longer than 30 s; split it into several runs. |
+| The app starts in its default state every time | Runs start with empty storage on purpose. Set what you need with [`init`](#1-init--set-things-up-before-the-app-starts), or pass `--keep-storage` (WebKitGTK) to carry it over. |
+| `waitfor:… timed out` | The element never became visible, or keeps moving (an endless animation). Check with `measure:`; raise `--wait-timeout`; use `wait:` for elements that never stop moving. |
+| `--headed` Linux snapshot is twice the size | A real window follows your screen's scale (HiDPI): PNG pixels = CSS pixels × scale. Off-screen snapshots are 1×. |
+| Off-screen page is half as wide as `--size` | `GDK_SCALE` is set in your environment; it shrinks the off-screen window. Unset it for the run. |
+| `cannot open display` (Linux) | No display at all (server, CI): run under `xvfb-run`. |
+
+## For AI agents
+
+[AGENTS.md](./AGENTS.md) is written for an AI coding agent that checks its own UI changes with this tool: how to
+read results, measure layout, step through animations, show focus rings, and the traps that waste time. Point your
+agent to it (for example from `CLAUDE.md` or `AGENTS.md` in your project):
+
+```md
+UI changes: check them in the real engine with `npx webview-preview` — see node_modules/webview-preview/AGENTS.md.
+```
+
+## License
+
+MIT © n0t4u404
