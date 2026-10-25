@@ -60,8 +60,8 @@ element.getClientRects().length > 0
   input.dispatchEvent(new Event('input', { bubbles: true })) }
 ```
 
-If the project's preview page exposes helpers (`window.preview.signIn()`, `window.preview.type(name, value)`), use
-them — they are faster and already correct.
+If the project's config has macros (`macros` in `webview-preview.config.mjs` — signing in, opening a dialog), use them
+(`macro:signIn`): they are already correct. A flow you repeat more than twice belongs there too.
 
 ## Measuring
 
@@ -112,7 +112,7 @@ for y in range(320 * scale, 340 * scale):
 
 The screen you need is often behind a login, or empty because the backend is not running. **Never change the app's
 code to skip a check** (no `if (PREVIEW) skipAuth`, no commented-out guards): such switches end up in releases. All of
-it goes into the preview config: `init`, `mock`, helpers. The app's code stays as it is.
+it goes into the preview config: `init`, `mock`, `tauri`, `globals`, `macros`. The app's code stays as it is.
 
 1. **Find out what stands in the way.** Run with `--log-requests` and print the list:
 
@@ -133,9 +133,10 @@ it goes into the preview config: `init`, `mock`, helpers. The app's code stays a
    - session in storage → `init`: `localStorage.setItem('<key>', '<value in the exact format the code parses>')`;
    - session from a request → `mock` that request (`"GET /api/me": { json: { … } }`) and anything else the screen
      loads; take field names from the types / interfaces in the code;
-   - desktop bridge (Tauri `invoke`) → a stub of `window.__TAURI_INTERNALS__` in `init`;
-   - session only in memory (no storage, no request) → steps through the real login form, or a helper the project
-     already exposes (`window.preview.signIn()`).
+   - desktop bridge → `tauri: { commands: { … } }` for Tauri, `globals` with `anyApi({ … })` for Electron's
+     preload API or Wails bindings; the request list shows `invoke <command> -> null` / `call <path> -> default`
+     for every call that still needs an answer;
+   - session only in memory (no storage, no request) → steps through the real login form, saved as a macro.
 
 4. **Check that it worked:** print `location.href` (you stayed on the route) and the request list (every request
    the screen needs is `-> mock …`, none fails), then snap.

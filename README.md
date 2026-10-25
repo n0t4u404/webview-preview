@@ -15,15 +15,22 @@ npx webview-preview https://example.com snap:home
 # → .webview-preview/webkitgtk-home.png  (on Linux)
 ```
 
+**What it is — and what it is not.** A tool to *look at* a screen in the real engine: open it in the state you need,
+press keys, measure, snap, compare with yesterday. Steps stay one-liners you can type in a terminal; mocks and
+desktop stubs only say *what to answer* so the screen renders. It is not a test runner: no test suites, no stateful
+mocks, no `expect` library, no retries. For end-to-end tests use Playwright Test or WebdriverIO — the stubs here are
+plain init scripts and fit there too.
+
 - [Which engine matches my app](#which-engine-matches-my-app)
 - [Install](#install)
 - [Quick start](#quick-start)
 - [Config file](#config-file)
 - [Steps](#steps)
+- [Macros](#macros)
 - [Command line](#command-line)
 - [JavaScript API](#javascript-api)
 - [Login, backend and other things outside the page](#login-backend-and-other-things-outside-the-page)
-- [Running a Tauri UI outside Tauri](#running-a-tauri-ui-outside-tauri)
+- [Desktop bridges: Tauri, Electron, Wails](#desktop-bridges-tauri-electron-wails)
 - [Comparing with a baseline](#comparing-with-a-baseline)
 - [Cleaning up snapshots](#cleaning-up-snapshots)
 - [Recipes](#recipes)
@@ -160,6 +167,10 @@ npx webview-preview /settings snap:settings
 | `init` | Code that runs **before the page's own scripts**, on every load: a string, `{ file: "path" }`, or a list of them. See [below](#1-init--set-things-up-before-the-app-starts). | — |
 | `mock` | Answers for `fetch` / `XMLHttpRequest` requests: `{ "GET /api/me": { json: { … } } }`. See [below](#2-mock--answer-backend-requests). | — |
 | `logRequests` | List every `fetch` / `XMLHttpRequest` request in `window.__webviewPreviewRequests` (also on whenever `mock` is set). | `false` |
+| `tauri` | Stub the Tauri bridge: `true`, or `{ commands: { … }, label: "main" }`. See [Desktop bridges](#desktop-bridges-tauri-electron-wails). | — |
+| `globals` | Objects to put on `window` before the page starts, by path: `{ "window.api": anyApi({ … }) }`. See [Desktop bridges](#desktop-bridges-tauri-electron-wails). | — |
+| `locale` | `navigator.language` for the page, `en-US`, `ru-RU` … Playwright engines also switch `Intl` and `Accept-Language`; WebKitGTK only `navigator.language`. | system |
+| `macros` | Named lists of steps, run with `macro:<name>`. See [Macros](#macros). | — |
 
 Command-line options win over the config file.
 
@@ -212,6 +223,7 @@ Steps run one after another, after the page has loaded and settled for 1.5 s.
 | `print:<expression>` | Prints the value: strings as they are, DOM elements as their HTML (first 200 characters), everything else as JSON. Promises are not awaited. |
 | `measure:<selector>` | Prints one line about the element: how many match, position and size, margin / padding / border, visible or hidden, display, opacity, font, colours and text. |
 | `resize:<W>x<H>` | Resizes the window. |
+| `macro:<name>` | Runs the steps of a macro from the config. See [Macros](#macros). |
 
 ### Selectors
 
@@ -247,6 +259,35 @@ npx webview-preview / \
 
 On Windows PowerShell use the same double quotes; inside them, keep JavaScript strings in single quotes.
 
+## Macros
+
+Steps you repeat — signing in, opening a dialog — go into the config under a name:
+
+```js
+export default {
+	macros: {
+		signIn: [
+			"js:location.hash = '#/sign-in'",
+			"waitfor:input[name=email]",
+			"click:input[name=email]",
+			"type:demo@example.com",
+			"click:input[name=password]",
+			"type:secret",
+			"click:button[type=submit]",
+			"waitfor:[role=tab]"
+		],
+		openSettings: ["macro:signIn", "click:text=Settings", "waitfor:[role=dialog]"]
+	}
+}
+```
+
+```sh
+npx webview-preview / macro:openSettings snap:settings
+```
+
+A macro may run other macros; one that runs itself stops with an error. Prefer real clicks and typing over setting
+values from code: the run then goes through the same handlers, focus and validation as for a person.
+
 ## Command line
 
 ```
@@ -271,6 +312,8 @@ webview-preview [route-or-url] [steps...] [options]
 | `--init-file <file>` | Same, from a file (repeatable) |
 | `--mock-file <file>` | Mocks from a `.json` or `.mjs` file (repeatable, added to the config's `mock`) |
 | `--log-requests` | Only list requests, answer nothing |
+| `--tauri` | Stub the Tauri bridge (answers from `tauri.commands` in the config) |
+| `--locale <tag>` | `navigator.language` for the page |
 | `--config <file>` | Use this config file |
 | `--no-config` | Ignore config files |
 | `-h`, `--help` / `-v`, `--version` | |
@@ -321,8 +364,8 @@ Change what the page *receives* instead, only for the preview run:
 | A session or token kept in `localStorage`, `sessionStorage`, cookies | [`init`](#1-init--set-things-up-before-the-app-starts) |
 | Requests to your backend (`fetch`, `axios`, `XMLHttpRequest`) | [`mock`](#2-mock--answer-backend-requests) |
 | You don't know yet what the app requests | [`--log-requests`](#3-find-out-what-the-app-requests) |
-| Desktop APIs (Tauri `invoke`, window controls) | [`init`](#1-init--set-things-up-before-the-app-starts) with a stub, see [Tauri](#running-a-tauri-ui-outside-tauri) |
-| Login that lives only in memory, or a flow you want to click through | steps or helpers: `js:preview.signIn()` |
+| Desktop APIs (Tauri `invoke`, Electron preload, Wails bindings) | [`tauri`, `globals`](#desktop-bridges-tauri-electron-wails) |
+| Login that lives only in memory, or a flow you want to click through | steps, kept as a [macro](#macros): `macro:signIn` |
 
 ### 1. `init` — set things up before the app starts
 
@@ -419,92 +462,83 @@ With `mock` set, the same list shows which requests were answered: `GET /api/me 
 desktop side does by itself (a Tauri command that calls a server from Rust). For desktop calls, stub the bridge in
 `init`; for the rest, run the real service locally.
 
-## Running a Tauri UI outside Tauri
+## Desktop bridges: Tauri, Electron, Wails
 
-Your Tauri frontend calls `invoke` and window APIs. Outside the app there is no Tauri, so those calls fail — and the
-screen you want to see may never render.
+Your frontend calls the desktop side: Tauri's `invoke`, an Electron preload API, Wails bindings. Outside the app
+there is no desktop side, so those calls fail — and the screen you want may never render. `webview-preview` puts a
+stand-in in place before the page starts, so you open **your real entry page**, not a copy made for previews.
 
-**Quick way — a stub in `init`.** `@tauri-apps/api` talks to `window.__TAURI_INTERNALS__`; define it before the app
-starts and every `invoke` gets your answer:
+Every call to a stand-in is listed in `window.__webviewPreviewRequests`, next to `fetch` / XHR requests — print it
+to see what the page asks for and what is still unanswered:
 
-```js
-// preview/tauri.js
-const answers = { app_version: "0.0.1", get_settings: { theme: "dark" } }
-
-window.__TAURI_INTERNALS__ = {
-	invoke: (command, args) => Promise.resolve(answers[command] ?? null),
-	transformCallback: () => 0,
-	metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } }
-}
+```sh
+npx webview-preview / wait:2000 "print:__webviewPreviewRequests.join('\n')"
+# invoke plugin:app|version -> stub
+# invoke get_settings -> null
+# call window.api.onUpdate -> default
 ```
 
+### Tauri
+
 ```js
-// webview-preview.config.mjs
 export default {
 	baseUrl: "http://localhost:1420",
 	server: { command: "npx vite --port 1420 --strictPort", port: 1420 },
-	init: { file: "preview/tauri.js" }
+	tauri: {
+		commands: {
+			"plugin:app|version": "1.4.0",
+			get_settings: { theme: "dark" },
+			greet: ({ name }) => `Hello, ${name}`
+		}
+	}
 }
 ```
 
-**Bigger apps — a preview entry page.** When you also want helpers (sign in, switch language, go offline) and typed
-stubs, give the preview its own entry:
+Or just `--tauri` on the command line. What you get (Tauri 2, `@tauri-apps/api`):
 
-1. **A stub** — set before anything imports `@tauri-apps/api`:
+- `invoke` answers from `commands` — a value, or a function of the arguments (it may be `async`). A command not in
+  the list gets `null`. Plugin commands are named as `@tauri-apps/api` sends them: `plugin:<plugin>|<command>`.
+- Built-in answers you can override: `plugin:app|version` / `name` / `tauri_version`, window state
+  (`plugin:window|is_maximized` → `false`, `is_focused` → `true`, `scale_factor`, `inner_size` …).
+- Events work inside the page: `listen`, `once`, `emit`, `unlisten`. To act as the Rust side, emit from a step:
+  `js:__webviewPreview.emit("download-progress", { percent: 40 })`.
+- `getCurrentWindow()` / `getCurrentWebview()` get the label `main` (`label` changes it), `isTauri()` is `true`,
+  `convertFileSrc` and `path.sep` work.
 
-   ```ts
-   // src/preview/tauri-stub.ts
-   const answers: Record<string, unknown> = { app_version: "0.0.1" }
+Functions in `commands` are copied into the page as source code, so they cannot use variables from the config
+file — only their arguments and what is in the page.
 
-   Object.assign(window, {
-   	__TAURI_INTERNALS__: {
-   		invoke: (command: string) => Promise.resolve(answers[command] ?? null),
-   		transformCallback: () => 0,
-   		metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } }
-   	}
-   });
-   ```
+### Electron, Wails and other bridges — `globals`
 
-2. **An entry** that renders your app after the stub:
+`globals` puts objects on `window` by path before the page starts. `anyApi()` is a stand-in that answers **any**
+call: awaiting it gives `null`, calling the result works too (handy for "subscribe" functions that return an
+"unsubscribe"). Pass the members you care about:
 
-   ```ts
-   // src/preview/index.tsx
-   import "./tauri-stub";
-   import { createRoot } from "react-dom/client";
-   import { App } from "../app";
+```js
+import { anyApi, defineConfig } from "webview-preview";
 
-   createRoot(document.getElementById("root")!).render(<App />);
-   ```
+export default defineConfig({
+	globals: {
+		// Electron: what your preload exposes with contextBridge.exposeInMainWorld("api", …)
+		"window.api": anyApi({
+			getVersion: async () => "1.4.0",
+			platform: "linux"
+		}),
 
-   plus `src/preview/index.html` that loads it. With Vite, add the page to `build.rollupOptions.input` only if you
-   want it in builds — the dev server serves it either way.
+		// Wails: generated bindings and the runtime
+		"window.go": anyApi(),
+		"window.runtime": anyApi()
+	}
+});
+```
 
-3. **Helpers** for states that are tedious to reach with clicks — signing in, switching language, going offline:
+Plain values work as well: `"window.__APP_CONFIG__": { apiUrl: "http://localhost:3000" }`.
 
-   ```ts
-   Object.assign(window, {
-   	preview: {
-   		signIn: () => { /* fill the form, submit */ },
-   		language: (code: string) => i18n.changeLanguage(code)
-   	}
-   });
-   ```
+### What stays different
 
-   ```sh
-   npx webview-preview /settings "js:preview.signIn()" wait:3000 snap:settings
-   ```
-
-4. **Config:**
-
-   ```js
-   export default {
-   	baseUrl: "http://localhost:1420/src/preview/index.html#",
-   	server: { command: "npx vite --port 1420 --strictPort", port: 1420 }
-   }
-   ```
-
-Real Rust is not involved, so anything that depends on it shows what the stub answers. That is the trade-off for
-checking a screen in seconds.
+Real Rust, Node or Go is not involved: anything that depends on it shows what the stand-in answers. Window chrome,
+native menus and dialogs are not there. That is the trade-off for checking a screen in seconds without building
+the app.
 
 ## Comparing with a baseline
 
