@@ -93,7 +93,9 @@ screenshot scale.
 "print:document.querySelector('form').getBoundingClientRect().width"
 ```
 
-**Frame by frame.** To see whether something animates smoothly, jumps, or flickers, record every animation frame into
+**Frame by frame.** To *see* an animation, use `film:` right after the step that starts it —
+`"click:text=New project" "film:open:500@[role=dialog]"` gives one PNG with 10 frames over 500 ms, cropped to the
+dialog. To *measure* whether something animates smoothly, jumps, or flickers, record every animation frame into
 `window` and print the log afterwards. Keep only the frames where the value changed:
 
 ```

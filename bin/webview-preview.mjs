@@ -38,6 +38,8 @@ Steps:
   measure:<css selector>  print size, position, box, visibility, font and text of the element
   assert:<expr>    check that the expression is truthy; if not, print why and exit with 1
   focusorder[:<n>] press Tab n times (default 20) and print where focus went; shows when it loops
+  film:<name>:<ms>[/<n>][@<css selector>]  n frames (default 10) over ms, from now, into one
+                   <out>/<prefix><name>.png, 5 per row; with a selector, cropped to where the element was
   resize:<WxH>     resize the window
   snap:<name>@<css selector>  save only that element (plus --snap-margin)
   key:<key>        press a key: Tab, Shift+Tab, Enter, Escape, ArrowDown, Control+a, x …

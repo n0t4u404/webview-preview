@@ -25,10 +25,13 @@ export const runPlaywright = async ({
 	const browserType = engine === "webkit" ? playwright.webkit : playwright.chromium;
 	const browser = await browserType.launch({ channel: CHANNELS[engine], headless: true });
 	const saved = [];
+	const films = [];
 	let failed = false;
 
 	try {
-		const page = await browser.newPage({ viewport: parseSize(size), deviceScaleFactor: scale ?? 1,
+		const page = await browser.newPage({
+			viewport: parseSize(size),
+			deviceScaleFactor: scale ?? 1,
 			locale,
 			colorScheme,
 			reducedMotion: isMotionReduced ? "reduce" : undefined
@@ -53,6 +56,20 @@ export const runPlaywright = async ({
 			return parseRect(result.value, step.selector ?? step.value);
 		}
 
+		const film = async step => {
+			const frames = [];
+			const started = Date.now();
+			for (let index = 0; index < step.frames; index += 1) {
+				const due = started + index * step.durationMs / (step.frames - 1);
+				if (Date.now() < due) await page.waitForTimeout(due - Date.now());
+				const time = Date.now() - started;
+				const file = path.join(out, `${prefix}${step.value}.frame-${index}.png`);
+				const [, rect] = await Promise.all([page.screenshot({ path: file }), step.rect ? evaluate(step.rect) : {}]);
+				frames.push({ file, time, rect: rect.value && rect.value !== "null" ? JSON.parse(rect.value) : null });
+			}
+			films.push({ name: step.value, file: path.join(out, `${prefix}${step.value}.png`), scale: scale ?? 1, viewport: page.viewportSize(), frames });
+		}
+
 		const runStep = async step => {
 			const { kind, value } = step;
 			if (kind === "snap") {
@@ -60,6 +77,8 @@ export const runPlaywright = async ({
 				const clip = step.selector ? clipRect(await elementRect(step), snapMargin, page.viewportSize()) : undefined;
 				await page.screenshot({ path: file, clip });
 				saved.push(file);
+			} else if (kind === "film") {
+				await film(step);
 			} else if (kind === "hover" || kind === "click") {
 				const rect = await elementRect(step);
 				const x = rect.x + rect.width / 2;
@@ -108,5 +127,5 @@ export const runPlaywright = async ({
 		await browser.close();
 	}
 
-	return { saved, failed }
+	return { saved, failed, films }
 }

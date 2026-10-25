@@ -232,6 +232,7 @@ Steps run one after another, after the page has loaded and settled for 1.5 s.
 | `latency:<ms>` | Delays every `fetch` / XHR request from now on; `latency:0` turns it off. |
 | `focusorder` / `focusorder:<n>` | Presses `Tab` with the real keyboard n times (20 by default) and prints where focus went, one line per stop — tag, role, name, label, "in dialog" — and `→ back to 1 after N stops` when it loops. Shows a focus trap, a skipped field or focus escaping a dialog at a glance. Starts from the current focus. |
 | `assert:<expression>` | Checks that the expression is truthy: prints `assert ok: …`, or `assert failed: … — got <value>` / `— threw <message>` and makes the run exit with 1. The other steps still run. |
+| `film:<name>:<ms>[/<n>][@<selector>]` | Takes n frames (10 by default, up to 60) evenly over ms, starting now, and puts them into one `<prefix><name>.png`, 5 per row, left to right. With a selector every frame is cropped to the area the element covered during the whole film (plus `--snap-margin`). Prints the real time of every frame: `film open: 10 frames at 0 55 111 … 500 ms`. Put it right after the step that starts the animation. |
 | `resize:<W>x<H>` | Resizes the window. |
 | `macro:<name>` | Runs the steps of a macro from the config. See [Macros](#macros). |
 
@@ -651,6 +652,16 @@ npx webview-preview /settings waitfor:.settings snap:settings "measure:.settings
 
 Every save runs the steps again from a clean page (the dev server stays up), prints the numbers and rewrites the
 snapshot. A change of the config file is picked up too.
+
+**See an animation, not only where it ends** — a dialog that opens:
+
+```sh
+npx webview-preview / "click:text=New project" "film:open:500@[role=dialog]"
+```
+
+One picture with 10 frames: you see whether it fades and grows smoothly, starts from the wrong place, jumps at the end
+or plays twice. Frames are real screenshots taken as fast as the engine allows, so the printed times are what to
+trust, not the planned spacing.
 
 **Light and dark, with and without motion:**
 

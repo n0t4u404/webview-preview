@@ -9,6 +9,7 @@ export type Step =
 	| `assert:${string}`
 	| "focusorder"
 	| `focusorder:${number}`
+	| `film:${string}:${number}`
 	| "offline"
 	| "online"
 	| `latency:${number}`

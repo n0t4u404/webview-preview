@@ -6,11 +6,14 @@ export const TIMEOUT_MS = 30000;
 export const WAIT_FOR_TIMEOUT_MS = 10000;
 export const WAIT_FOR_POLL_MS = 50;
 
-const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "focusorder", "resize", "key", "type", "hover", "click", "offline", "online", "latency"]);
+const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "focusorder", "resize", "key", "type", "hover", "click", "offline", "online", "latency", "film"]);
 export const ASSERT_MARKER = "__webviewPreviewAssert:";
 export const FOCUS_MARKER = "__webviewPreviewFocus:";
 const FOCUS_ORDER_DEFAULT = 20;
 const FOCUS_ORDER_MAX = 200;
+const FILM = /^([^:@]+):(\d+)(?:\/(\d+))?(?:@(.+))?$/s;
+const FILM_FRAMES_DEFAULT = 10;
+const FILM_FRAMES_MAX = 60;
 const MODIFIERS = { Shift: "Shift", Control: "Control", Ctrl: "Control", Alt: "Alt", Meta: "Meta" }
 export const KEY_NAMES = [
 	"Tab", "Enter", "Escape", "Backspace", "Delete", "Insert", "Space", "Home", "End", "PageUp", "PageDown",
@@ -154,6 +157,16 @@ const rectExpression = (selector, isScrolled) => `(() => {
 	return JSON.stringify({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
 })()`;
 
+const filmStep = (value, step) => {
+	const match = FILM.exec(value);
+	if (!match) throw new Error(`film needs name:ms, like film:open:400@[role=dialog], got "${step}"`);
+	const [, name, durationMs, count, selector] = match;
+	const frames = Number(count ?? FILM_FRAMES_DEFAULT);
+	if (frames < 2 || frames > FILM_FRAMES_MAX) throw new Error(`film takes 2 to ${FILM_FRAMES_MAX} frames, got "${step}"`);
+	const film = { kind: "film", value: name, durationMs: Number(durationMs), frames }
+	return selector ? { ...film, selector, rect: rectExpression(selector, false) } : film;
+}
+
 const parseKey = combo => {
 	const parts = combo.split("+");
 	const key = parts.pop();
@@ -212,6 +225,7 @@ export const parseSteps = steps => steps.flatMap(step => {
 		return { kind, value, check: waitForExpression(selector, isGone) }
 	}
 	if (kind === "focusorder") return focusOrderSteps(value, step);
+	if (kind === "film") return filmStep(value, step);
 	if (NETWORK_STEPS.has(kind)) return networkStep(kind, value, step);
 	if (kind === "assert") {
 		if (!value) throw new Error(`assert needs an expression, got "${step}"`);

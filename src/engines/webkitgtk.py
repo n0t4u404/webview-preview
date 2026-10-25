@@ -243,6 +243,44 @@ def main():
 
         evaluate(step["check"], on_value, lambda error: (step_failed(f"waitfor:{step['value']} failed: {error}"), next_step()))
 
+    def film(step):
+        frames = []
+        started = GLib.get_monotonic_time() / 1000
+        interval = step["durationMs"] / (step["frames"] - 1)
+
+        def store_rect(frame, text):
+            frame["rect"] = json.loads(text) if text and text != "null" else None
+
+        def finish_film():
+            width, height = view.get_allocated_width(), view.get_allocated_height()
+            for index, frame in enumerate(frames):
+                path = os.path.join(args.out, f"{args.prefix}{step['value']}.frame-{index}.png")
+                frame.pop("pixbuf").savev(path, "png", [], [])
+                frame["file"] = path
+            emit("film", {
+                "name": step["value"],
+                "file": os.path.join(args.out, f"{args.prefix}{step['value']}.png"),
+                "scale": full_pixbuf().get_width() / width,
+                "viewport": {"width": width, "height": height},
+                "frames": frames
+            })
+            next_step()
+
+        def capture():
+            now = GLib.get_monotonic_time() / 1000
+            frame = {"pixbuf": full_pixbuf(), "time": round(now - started), "rect": None}
+            frames.append(frame)
+            if step.get("rect"):
+                evaluate(step["rect"], lambda text: store_rect(frame, text), lambda _: None)
+            if len(frames) < step["frames"]:
+                due = started + len(frames) * interval
+                GLib.timeout_add(max(0, int(due - GLib.get_monotonic_time() / 1000)), capture)
+            else:
+                evaluate("0", lambda _: finish_film(), lambda _: finish_film())
+            return False
+
+        capture()
+
     def next_step():
         GLib.idle_add(run_step)
 
@@ -259,6 +297,8 @@ def main():
             else:
                 save(value, full_pixbuf())
                 next_step()
+        elif kind == "film":
+            film(step)
         elif kind in ("js", "jsnow"):
             evaluate(value, lambda _: None, lambda error: None if UNSUPPORTED_RESULT in error else emit("error", f"js failed: {error}"))
             if kind == "js":

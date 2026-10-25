@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { compareSnapshots } from "#src/snapshots/compare.mjs";
+import { stitchFilm } from "#src/snapshots/film.mjs";
 import { loadConfig } from "#src/core/config.mjs";
 import { resolveEngine, runEngine } from "#src/engines/index.mjs";
 import { consoleScript, consoleStep, watchOutput } from "#src/page/console.mjs";
@@ -58,6 +59,7 @@ export const preview = async (options = {}) => {
 	const out = path.resolve(baseDir, merged.out);
 	const url = resolveUrl(merged.target ?? merged.url ?? "/", merged.baseUrl);
 	const sizes = parseSizes(merged.size);
+	const snapMargin = Number(merged.snapMargin ?? 8);
 	const colorScheme = checkColorScheme(merged.colorScheme);
 	const mockFiles = await resolveMockFiles(options.mockFile, process.cwd());
 	const hasMock = config.mock !== undefined || options.mock !== undefined || mockFiles.length > 0
@@ -111,13 +113,22 @@ export const preview = async (options = {}) => {
 				out,
 				prefix: sizes.length > 1 ? `${prefix}${size}-` : prefix,
 				scale: merged.scale === undefined ? undefined : Number(merged.scale),
-				snapMargin: Number(merged.snapMargin ?? 8),
+				snapMargin,
 				isHeaded: !!merged.headed,
 				isStorageKept: !!merged.keepStorage,
 				waitForTimeoutMs: Number(merged.waitTimeout ?? 10000),
 				log: output.log
 			});
 			result.saved.push(...run.saved);
+			for (const film of run.films ?? []) {
+				try {
+					output.log.info(stitchFilm(film, snapMargin));
+					result.saved.push(film.file);
+				} catch (error) {
+					output.log.error(`film:${film.name} failed: ${error.message}`);
+					result.failed = true;
+				}
+			}
 			result.failed ||= run.failed;
 		}
 		
