@@ -1,0 +1,58 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · ${{ matrix.engine }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            engine: webkitgtk
+          - os: ubuntu-latest
+            engine: chromium
+          - os: windows-latest
+            engine: msedge
+          - os: windows-latest
+            engine: chrome
+          - os: macos-latest
+            engine: webkit
+    env:
+      WEBVIEW_PREVIEW_ENGINE: ${{ matrix.engine }}
+      WEBVIEW_PREVIEW_OUT: ${{ github.workspace }}/test-output
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Install WebKitGTK
+        if: matrix.engine == 'webkitgtk'
+        run: sudo apt-get update && sudo apt-get install -y python3-gi gir1.2-webkit2-4.1 xvfb
+      - name: Install the Playwright browser
+        if: matrix.engine == 'chromium' || matrix.engine == 'webkit'
+        run: npx playwright-core install --with-deps ${{ matrix.engine }}
+
+      - name: Test
+        if: matrix.engine == 'webkitgtk'
+        run: xvfb-run -a npm test
+      - name: Test
+        if: matrix.engine != 'webkitgtk'
+        run: npm test
+
+      - name: Keep the snapshots and the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshots-${{ matrix.os }}-${{ matrix.engine }}
+          path: test-output
+          if-no-files-found: ignore

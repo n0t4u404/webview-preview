@@ -1,5 +1,7 @@
 # webview-preview
 
+[![test](https://github.com/n0t4u404/webview-preview/actions/workflows/test.yml/badge.svg)](https://github.com/n0t4u404/webview-preview/actions/workflows/test.yml)
+
 See your UI the way your desktop app really renders it. `webview-preview` opens a page in the **same engine your app
 runs on** — WebKitGTK on Linux, Edge (the WebView2 engine) on Windows, WebKit on macOS — runs a list of steps
 (click, type, wait, measure) and saves PNG snapshots.
@@ -737,6 +739,17 @@ agent to it (for example from `CLAUDE.md` or `AGENTS.md` in your project):
 ```md
 UI changes: check them in the real engine with `npx webview-preview` — see node_modules/webview-preview/AGENTS.md.
 ```
+
+## Development
+
+```sh
+npm test                                   # the default engine for this system
+WEBVIEW_PREVIEW_ENGINE=chrome npm test     # one engine
+```
+
+The tests open `test/fixture/index.html` and check snapshots, input, focus order, errors, mock, offline, sizes,
+`film:`, compare and the report. GitHub Actions runs them on every push: WebKitGTK and Chromium on Linux, Edge and
+Chrome on Windows, WebKit on macOS; snapshots and reports of every run are kept as artifacts.
 
 ## License
 

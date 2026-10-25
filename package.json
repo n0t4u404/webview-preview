@@ -30,6 +30,9 @@
 	"imports": {
 		"#src/*": "./src/*"
 	},
+	"scripts": {
+		"test": "node --test"
+	},
 	"bin": {
 		"webview-preview": "bin/webview-preview.mjs"
 	},

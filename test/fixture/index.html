@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>fixture</title>
+<style>
+	body { margin: 0; padding: 24px; font: 16px sans-serif; background: #fff; color: #111 }
+	@media (prefers-color-scheme: dark) { body { background: #111; color: #eee } }
+	form { display: flex; gap: 8px; width: 400px }
+	input { flex: 1; height: 32px }
+	button { height: 32px }
+	dialog[open] { animation: grow 300ms ease-out }
+	@keyframes grow { from { opacity: 0; transform: scale(0.8) } }
+	@media (prefers-reduced-motion: reduce) { dialog[open] { animation: none } }
+</style>
+</head>
+<body>
+<form id="form" onsubmit="event.preventDefault()">
+	<input id="name" name="name" aria-label="Name">
+	<button id="open" type="button" onclick="document.querySelector('dialog').showModal()">Open</button>
+	<button id="load" type="button" onclick="fetch('/api/user').then(response => response.json()).then(user => document.querySelector('#user').textContent = user.name, error => document.querySelector('#user').textContent = error.message)">Load</button>
+	<button id="fail" type="button" onclick="console.error('broken on purpose')">Fail</button>
+</form>
+<p id="user">nobody</p>
+<dialog>
+	<p>Dialog</p>
+	<button id="ok" type="button">OK</button>
+	<button id="close" type="button" onclick="this.closest('dialog').close()">Close</button>
+</dialog>
+</body>
+</html>
