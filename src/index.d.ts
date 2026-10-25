@@ -10,6 +10,9 @@ export type Step =
 	| "focusorder"
 	| `focusorder:${number}`
 	| `film:${string}:${number}`
+	| `film:${string}:${number}/${number}`
+	| `film:${string}:${number}@${string}`
+	| `film:${string}:${number}/${number}@${string}`
 	| "offline"
 	| "online"
 	| `latency:${number}`

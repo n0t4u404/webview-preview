@@ -35,6 +35,19 @@ test("snapshots, print, measure and assert", async () => {
 	assert.equal(readPng(result.saved[1]).width, 400 + 2 * 8);
 });
 
+test("resize shrinks and grows the window", async () => {
+	const result = await run([
+		"resize:500x400",
+		"assert:innerWidth === 500 && innerHeight === 400",
+		"snap:small",
+		"resize:800x600",
+		"assert:innerWidth === 800 && innerHeight === 600"
+	]);
+	assert.equal(result.failed, false, result.lines.join("\n"));
+	const small = readPng(result.saved[0]);
+	assert.deepEqual([small.width, small.height], [500, 400]);
+});
+
 test("keyboard and mouse", async () => {
 	const result = await run([
 		"click:#name",
@@ -123,4 +136,8 @@ test("compare and report", async () => {
 	const changed = await run(["js:document.querySelector('#open').style.background = 'red'", ...steps], { baseline, compare: true, report: true });
 	assert.equal(changed.failed, true);
 	assert.match(readFileSync(changed.report, "utf8"), /px differ/);
+	const diffFile = changed.saved[0].replace(/\.png$/, ".diff.png");
+	assert.ok(existsSync(diffFile));
+	await run(steps, { baseline, compare: true });
+	assert.ok(!existsSync(diffFile), "a stale diff stays after a clean compare");
 });

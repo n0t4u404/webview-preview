@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { readPng, writePng } from "#src/snapshots/png.mjs";
 
@@ -41,6 +41,8 @@ export const compareSnapshots = ({ saved, baselineDir, updateBaseline, tolerance
 	for (const file of saved) {
 		const name = path.basename(file);
 		const baseline = path.join(baselineDir, name);
+		const diffFile = file.replace(/\.png$/, ".diff.png");
+		rmSync(diffFile, { force: true });
 		if (updateBaseline || !existsSync(baseline)) {
 			copyFileSync(file, baseline);
 			log.info(`compare ${name}: ${updateBaseline ? "baseline updated" : "new baseline"} → ${baseline}`);
@@ -61,7 +63,6 @@ export const compareSnapshots = ({ saved, baselineDir, updateBaseline, tolerance
 			continue;
 		}
 
-		const diffFile = file.replace(/\.png$/, ".diff.png");
 		writePng(diffFile, result.diff);
 		const share = ((result.differentPixels / result.total) * 100).toFixed(2);
 		const message = `compare ${name}: ${result.differentPixels} px differ (${share}%) → ${diffFile}`;

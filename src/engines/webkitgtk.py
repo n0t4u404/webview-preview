@@ -340,9 +340,21 @@ def main():
             wait_for(step, GLib.get_monotonic_time())
         elif kind == "resize":
             width, height = (int(part) for part in value.split("x"))
-            window.set_size_request(width, height)
+            window.set_size_request(-1, -1)
+            window.set_default_size(width, height)
             window.resize(width, height)
-            GLib.timeout_add(INPUT_SETTLE_MS, run_step)
+            started = GLib.get_monotonic_time()
+
+            def check_size():
+                def on_value(text):
+                    if text == f"{width}x{height}" or (GLib.get_monotonic_time() - started) / 1000 >= KEY_WAIT_MS:
+                        GLib.timeout_add(INPUT_SETTLE_MS, run_step)
+                    else:
+                        GLib.timeout_add(KEY_POLL_MS, lambda: (check_size(), False)[1])
+
+                evaluate("innerWidth + 'x' + innerHeight", on_value, lambda _: GLib.timeout_add(INPUT_SETTLE_MS, run_step))
+
+            check_size()
         elif kind == "print":
             evaluate(
                 value,
