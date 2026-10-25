@@ -85,7 +85,7 @@ export const preview = async (options = {}) => {
 			tauri && { label: "tauri", source: tauriScript(tauri) },
 			Object.keys(globals).length && { label: "globals", source: globalsScript(globals) }
 		]),
-		...(hasMock ? [mockScript(mockRules)] : []),
+		...checked([hasMock && { label: "mock", source: mockScript(mockRules) }]),
 		...checked([{ label: "network", source: networkScript(network) }]),
 		...resolveInit([
 			{ entries: config.init, baseDir },

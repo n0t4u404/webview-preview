@@ -720,6 +720,8 @@ More of these — animations frame by frame, measuring, getting past login — i
 | `WebKitGTK engine needs Linux with python3-gi and WebKit2 4.1` | Install the [Linux packages](#linux--webkitgtk). |
 | `This engine needs playwright-core` | `npm i -D playwright-core`. |
 | `Executable doesn't exist` (Playwright) | `npx playwright install webkit` (or `chromium`); for `msedge` / `chrome` install the browser itself. |
+| macOS, `webkit`: `Tab` skips buttons and links | That is macOS: with Full Keyboard Access off (the default) WebKit tabs to text fields only — a Tauri app on a Mac behaves the same. Use `key:Alt+Tab` to reach every element, as Option+Tab does in Safari. |
+| WebKitGTK in CI | Run under `xvfb-run -a` (it needs an X display even off-screen); `sudo apt-get install -y python3-gi gir1.2-webkit2-4.1 xvfb`. |
 | `Server did not open port …` | The `server.command` failed or uses another port. Run it by hand to see why; raise `readyTimeoutMs` for slow starts. |
 | `"/route" is not a full URL` | Set `baseUrl` in the config or pass `--base-url`. |
 | Blank snapshot | The page needs more time or threw on start: add `wait:2000`, and `print:document.body.innerHTML.length`. |

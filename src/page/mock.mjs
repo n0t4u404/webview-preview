@@ -58,18 +58,19 @@ export const resolveMockFiles = async (files, baseDir) => Promise.all(
 export const mockScript = rules => `(() => {
 	const rules = ${JSON.stringify(rules)}.map(rule => ({ ...rule, regex: new RegExp(rule.regex) }));
 	const requests = window.${REQUESTS_KEY} = window.${REQUESTS_KEY} || [];
+	const pathOf = address => address.protocol === "file:" ? address.pathname.replace(/^\\/[A-Za-z]:/, "") : address.pathname;
 	const find = (method, url) => {
 		const address = new URL(url, location.href);
 		return rules.find(rule => {
 			if (rule.method && rule.method !== method) return false;
-			const base = rule.isFullUrl ? address.origin + address.pathname : address.pathname;
+			const base = rule.isFullUrl ? address.origin + address.pathname : pathOf(address);
 			return rule.regex.test(rule.withQuery ? base + address.search : base);
 		});
 	}
 	
 	const record = (method, url, rule) => {
 		const address = new URL(url, location.href);
-		const shown = address.origin === location.origin ? address.pathname + address.search : address.href;
+		const shown = address.origin === location.origin ? pathOf(address) + address.search : address.href;
 		requests.push(method + " " + shown + (rule ? " -> mock " + rule.status : " -> network"));
 	}
 	const wait = ms => new Promise(resolve => setTimeout(resolve, ms));

@@ -129,7 +129,9 @@ def main():
         event.focus_change.send_event = 1
         event.focus_change.in_ = 1
         event.set_device(seat.get_keyboard())
+        display.error_trap_push()
         deliver(event)
+        display.error_trap_pop_ignored()
         view.grab_focus()
 
     def key_event(kind, keyval, mask):

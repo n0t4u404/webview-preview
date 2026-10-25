@@ -8,6 +8,7 @@ import { preview } from "#src/index.mjs";
 import { readPng } from "#src/snapshots/png.mjs";
 
 const engine = process.env.WEBVIEW_PREVIEW_ENGINE ?? "auto";
+const isMacWebKit = process.platform === "darwin" && (engine === "webkit" || engine === "auto");
 const fixture = pathToFileURL(fileURLToPath(new URL("./fixture/index.html", import.meta.url))).href;
 const out = process.env.WEBVIEW_PREVIEW_OUT ?? mkdtempSync(path.join(os.tmpdir(), "webview-preview-test-"));
 
@@ -34,11 +35,23 @@ test("snapshots, print, measure and assert", async () => {
 	assert.equal(readPng(result.saved[1]).width, 400 + 2 * 8);
 });
 
-test("keyboard, mouse and focus order", async () => {
+test("keyboard and mouse", async () => {
 	const result = await run([
 		"click:#name",
 		"type:hello",
-		"assert:document.querySelector('#name').value === 'hello'",
+		"key:Backspace",
+		"assert:document.querySelector('#name').value === 'hell'",
+		"click:#open",
+		"waitfor:dialog[open]",
+		"key:Escape",
+		"waitfor:!dialog[open]"
+	]);
+	assert.equal(result.failed, false, result.lines.join("\n"));
+});
+
+test("focus order", { skip: isMacWebKit && "macOS WebKit tabs to text fields only (Full Keyboard Access is off)" }, async () => {
+	const result = await run([
+		"click:#name",
 		"key:Tab",
 		"assert:document.activeElement.id === 'open'",
 		"key:Enter",
@@ -49,6 +62,11 @@ test("keyboard, mouse and focus order", async () => {
 	const order = result.lines.slice(result.lines.findIndex(line => line.startsWith("focus order"))).join("\n");
 	assert.match(order, /button#close "Close" in dialog/);
 	assert.match(order, /→ back to 1/);
+});
+
+test("Alt+Tab reaches buttons on macOS WebKit", { skip: !isMacWebKit && "macOS WebKit only" }, async () => {
+	const result = await run(["click:#name", "key:Alt+Tab", "assert:document.activeElement.id === 'open'"]);
+	assert.equal(result.failed, false, result.lines.join("\n"));
 });
 
 test("a failed assert and a console error fail the run", async () => {

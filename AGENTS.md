@@ -220,6 +220,9 @@ makes a page that respects it skip its transitions, so a snapshot right after a 
 WebKitGTK). The app opens in its default state — the default tab, no saved session — so reach the state you need with
 steps or `init`; do not rely on what an earlier run clicked.
 
+**Tab on macOS.** WebKit on a Mac tabs to text fields only unless Full Keyboard Access is on; buttons and links are
+skipped. That is what users of the app on a Mac get too — use `key:Alt+Tab` there to walk every element.
+
 **Windows' WebView2 itself.** `msedge` is the same engine, not the same embedding; window chrome, scrollbars of the
 host and DPI handling of a native window can differ.
 
