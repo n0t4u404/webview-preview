@@ -18,8 +18,6 @@ export const runWebkitGtk = ({ url, steps, init = [], size, out, prefix, snapMar
 	const { width, height } = parseSize(size);
 	const child = spawn("python3", [
 		SCRIPT, url,
-		"--steps", JSON.stringify(steps),
-		"--init", JSON.stringify(init),
 		"--init-errors", INIT_ERRORS_EXPRESSION,
 		"--out", out,
 		"--prefix", prefix,
@@ -34,9 +32,12 @@ export const runWebkitGtk = ({ url, steps, init = [], size, out, prefix, snapMar
 		"--js-settle-ms", String(JS_SETTLE_MS),
 		"--timeout-ms", String(timeoutMs)
 	], {
-		stdio: ["ignore", "pipe", "pipe"],
+		stdio: ["pipe", "pipe", "pipe"],
 		env: { PYTHONUNBUFFERED: "1", ...process.env }
 	});
+
+	child.stdin.on("error", () => undefined);
+	child.stdin.end(JSON.stringify({ steps, init }));
 
 	const saved = [];
 	let buffer = "";

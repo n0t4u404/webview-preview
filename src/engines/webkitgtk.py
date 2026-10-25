@@ -37,8 +37,6 @@ def emit(kind, value):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("url")
-    parser.add_argument("--steps", required=True)
-    parser.add_argument("--init", required=True)
     parser.add_argument("--init-errors", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--prefix", required=True)
@@ -71,8 +69,9 @@ def keyval_for(key):
 
 def main():
     args = parse_args()
-    steps = json.loads(args.steps)
-    init_scripts = json.loads(args.init)
+    payload = json.loads(sys.stdin.read())
+    steps = payload["steps"]
+    init_scripts = payload["init"]
     os.makedirs(args.out, exist_ok=True)
 
     window = Gtk.Window(title="webview-preview") if args.headed else Gtk.OffscreenWindow()
