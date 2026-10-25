@@ -1,3 +1,5 @@
+import { ASSERT_MARKER } from "#src/core/steps.mjs";
+
 export const CONSOLE_KEY = "__webviewPreviewConsole";
 const MARKER = "__webviewPreviewConsole:";
 
@@ -36,18 +38,27 @@ export const consoleScript = () => `(() => {
 
 export const consoleStep = { kind: "print", value: `"${MARKER}" + JSON.stringify(window.${CONSOLE_KEY} || [])`, isInternal: true }
 
-export const watchConsole = log => {
+export const watchOutput = log => {
 	const entries = [];
+	let failedAsserts = 0;
 	const info = message => {
-		if (typeof message === "string" && message.startsWith(MARKER)) {
+		if (typeof message !== "string") return log.info(message);
+		if (message.startsWith(MARKER)) {
 			entries.push(...JSON.parse(message.slice(MARKER.length)));
 			return;
+		}
+		
+		if (message.startsWith(ASSERT_MARKER)) {
+			const [expression, problem] = JSON.parse(message.slice(ASSERT_MARKER.length));
+			if (problem === null) return log.info(`assert ok: ${expression}`);
+			failedAsserts += 1;
+			return log.error(`assert failed: ${expression} — ${problem}`);
 		}
 		log.info(message);
 	}
 	const report = () => {
 		for (const { kind, message, count } of entries) log.error(`${kind}: ${message}${count > 1 ? ` (×${count})` : ""}`);
-		return entries.length;
+		return { consoleErrors: entries.length, failedAsserts }
 	}
 	return { log: { ...log, info }, report }
 }

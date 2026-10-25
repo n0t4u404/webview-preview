@@ -3,7 +3,7 @@ import path from "node:path";
 import { compareSnapshots } from "#src/snapshots/compare.mjs";
 import { loadConfig } from "#src/core/config.mjs";
 import { resolveEngine, runEngine } from "#src/engines/index.mjs";
-import { consoleScript, consoleStep, watchConsole } from "#src/page/console.mjs";
+import { consoleScript, consoleStep, watchOutput } from "#src/page/console.mjs";
 import { checkLocale, globalsScript, localeScript } from "#src/page/globals.mjs";
 import { resolveInit, wrapInit } from "#src/page/init.mjs";
 import { compileMock, mockScript, resolveMockFiles } from "#src/page/mock.mjs";
@@ -68,7 +68,7 @@ export const preview = async (options = {}) => {
 	], baseDir));
 	mkdirSync(out, { recursive: true });
 
-	const consoleWatch = watchConsole(merged.log ?? consoleLog);
+	const output = watchOutput(merged.log ?? consoleLog);
 	const server = merged.server && { cwd: baseDir, ...merged.server }
 	const stopServer = await startServer(server);
 	try {
@@ -85,9 +85,9 @@ export const preview = async (options = {}) => {
 			isHeaded: !!merged.headed,
 			isStorageKept: !!merged.keepStorage,
 			waitForTimeoutMs: Number(merged.waitTimeout ?? 10000),
-			log: consoleWatch.log
+			log: output.log
 		});
-		const consoleErrors = consoleWatch.report();
+		const { consoleErrors, failedAsserts } = output.report();
 		const shouldCompare = !!(merged.compare || merged.updateBaseline);
 		const compareFailed = shouldCompare && compareSnapshots({
 			saved: result.saved,
@@ -98,7 +98,7 @@ export const preview = async (options = {}) => {
 			log: merged.log ?? consoleLog
 		});
 		const consoleFailed = !!merged.failOnError && consoleErrors > 0;
-		return { engine, url, ...result, consoleErrors, failed: result.failed || compareFailed || consoleFailed }
+		return { engine, url, ...result, consoleErrors, failedAsserts, failed: result.failed || compareFailed || consoleFailed || failedAsserts > 0 }
 	} finally {
 		stopServer();
 	}

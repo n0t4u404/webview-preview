@@ -4,7 +4,8 @@ export const TIMEOUT_MS = 30000;
 export const WAIT_FOR_TIMEOUT_MS = 10000;
 export const WAIT_FOR_POLL_MS = 50;
 
-const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "resize", "key", "type", "hover", "click"]);
+const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "resize", "key", "type", "hover", "click"]);
+export const ASSERT_MARKER = "__webviewPreviewAssert:";
 const MODIFIERS = { Shift: "Shift", Control: "Control", Ctrl: "Control", Alt: "Alt", Meta: "Meta" }
 export const KEY_NAMES = [
 	"Tab", "Enter", "Escape", "Backspace", "Delete", "Insert", "Space", "Home", "End", "PageUp", "PageDown",
@@ -82,6 +83,25 @@ const MEASURE_FUNCTION = `(selector, query, isVisible) => {
 	].join(" · ");
 }`;
 
+const assertExpression = expression => `(() => {
+	const show = value => {
+		if (typeof value === "string") return JSON.stringify(value);
+		if (typeof Node !== "undefined" && value instanceof Node) return value.nodeType === 1 ? value.outerHTML.slice(0, 120) : String(value.nodeName);
+		try {
+			return JSON.stringify(value) ?? String(value);
+		} catch {
+			return String(value);
+		}
+	}
+	const report = problem => ${JSON.stringify(ASSERT_MARKER)} + JSON.stringify([${JSON.stringify(expression)}, problem]);
+	try {
+		const value = (${expression});
+		return report(value ? null : "got " + show(value));
+	} catch (error) {
+		return report("threw " + (error && error.message || error));
+	}
+})()`;
+
 const measureExpression = selector => `(${MEASURE_FUNCTION})(${JSON.stringify(selector)}, ${QUERY_FUNCTION}, ${VISIBLE_FUNCTION})`;
 
 const rectExpression = (selector, isScrolled) => `(() => {
@@ -157,6 +177,10 @@ export const parseSteps = steps => steps.map(step => {
 		const selector = isGone ? value.slice(1) : value;
 		if (!selector) throw new Error(`waitfor needs a selector, got "${step}"`);
 		return { kind, value, check: waitForExpression(selector, isGone) }
+	}
+	if (kind === "assert") {
+		if (!value) throw new Error(`assert needs an expression, got "${step}"`);
+		return { kind: "print", value: assertExpression(value), assert: value }
 	}
 	if (kind === "measure") {
 		if (!value) throw new Error(`measure needs a selector, got "${step}"`);

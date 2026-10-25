@@ -34,6 +34,7 @@ Steps:
   snap:<name>      save <out>/<prefix><name>.png
   print:<expr>     print the value of an expression
   measure:<css selector>  print size, position, box, visibility, font and text of the element
+  assert:<expr>    check that the expression is truthy; if not, print why and exit with 1
   resize:<WxH>     resize the window
   snap:<name>@<css selector>  save only that element (plus --snap-margin)
   key:<key>        press a key: Tab, Shift+Tab, Enter, Escape, ArrowDown, Control+a, x …

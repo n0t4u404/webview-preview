@@ -210,6 +210,9 @@ host and DPI handling of a native window can differ.
 - The numbers you defined in step 1 match, in the engine the user runs (`webkitgtk` for Tauri on Linux, `msedge` for
   Windows).
 - No `js failed` / `print failed` / selector errors you did not expect; exit code 0.
+- What you measured by eye is pinned with `assert:` — `assert:document.activeElement.matches('[role=dialog] button')`,
+  `assert:getComputedStyle(document.querySelector('.card')).borderRadius === '12px'` — so a later run proves it in one
+  line. `assert:` shows only the final value; for `a === b` print `a` first if it fails.
 - Keyboard and hover behaviour checked with `key:` / `hover:` where the change touches them.
 - You looked at one snapshot of the final state.
 - You listed what could not be checked: fractional scroll, the other platform's engine, real backend data.

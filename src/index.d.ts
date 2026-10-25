@@ -6,6 +6,7 @@ export type Step =
 	| `wait:${number}`
 	| `waitfor:${string}`
 	| `measure:${string}`
+	| `assert:${string}`
 	| `snap:${string}`
 	| `print:${string}`
 	| `resize:${number}x${number}`
@@ -83,6 +84,7 @@ export interface PreviewResult {
 	url: string;
 	saved: string[];
 	consoleErrors: number;
+	failedAsserts: number;
 	failed: boolean;
 }
 
