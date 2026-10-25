@@ -16,7 +16,8 @@ const FLAGS = {
 	"--compare-tolerance": "compareTolerance",
 	"--older-than": "olderThan",
 	"--wait-timeout": "waitTimeout",
-	"--locale": "locale"
+	"--locale": "locale",
+	"--color-scheme": "colorScheme"
 }
 const LIST_FLAGS = { "--init": "init", "--init-file": "initFile", "--mock-file": "mockFile" }
 
@@ -46,7 +47,10 @@ Steps:
 
 Options:
   --engine <name>  ${ENGINES.join(" | ")} (default: auto)
-  --size <WxH>     window size in CSS pixels (default: 1200x650)
+  --size <WxH>     window size in CSS pixels (default: 1200x650); several sizes, comma-separated
+                   (1200x650,800x600), run the steps once per size into <prefix><WxH>-<name>.png
+  --color-scheme <light|dark>  prefers-color-scheme for the page (default: the system's)
+  --reduced-motion prefers-reduced-motion: reduce
   --out <dir>      folder for snapshots (default: .webview-preview)
   --prefix <text>  file name prefix (default: "<engine>-")
   --scale <n>      device pixel ratio for Playwright engines (default: 1); WebKitGTK renders
@@ -103,6 +107,10 @@ const parseArgs = argv => {
 		}
 		if (arg === "--headed") {
 			options.headed = true;
+			continue;
+		}
+		if (arg === "--reduced-motion") {
+			options.reducedMotion = true;
 			continue;
 		}
 		if (arg === "--fail-on-error") {

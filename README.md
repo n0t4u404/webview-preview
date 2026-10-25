@@ -156,7 +156,9 @@ npx webview-preview /settings snap:settings
 | `server.cwd` | Folder for `server.command`. | the config's folder |
 | `server.readyTimeoutMs` | How long to wait for the port. | `30000` |
 | `engine` | See [engines](#which-engine-matches-my-app). | `auto` |
-| `size` | Window size in CSS pixels, `WxH`. | `1200x650` |
+| `size` | Window size in CSS pixels, `WxH`. Several sizes — `"1200x650,800x600"` or a list — run the steps once per size; snapshots get the size in the name: `webkitgtk-800x600-page.png`. | `1200x650` |
+| `colorScheme` | `prefers-color-scheme` for the page: `light` or `dark`. | system |
+| `reducedMotion` | `prefers-reduced-motion: reduce` for the page. | `false` |
 | `out` | Snapshot folder, relative to the config's folder. | `.webview-preview` |
 | `prefix` | File name prefix. | `<engine>-` |
 | `scale` | Device pixel ratio for Playwright engines (`2` = HiDPI). WebKitGTK: off-screen snapshots are 1×, `--headed` ones follow your screen. | `1` |
@@ -316,7 +318,9 @@ webview-preview [route-or-url] [steps...] [options]
 | Option | |
 |---|---|
 | `--engine <name>` | `auto`, `webkitgtk`, `msedge`, `chrome`, `chromium`, `webkit` |
-| `--size <WxH>` | Window size |
+| `--size <WxH>` | Window size; several, comma-separated: `1200x650,800x600` |
+| `--color-scheme <light\|dark>` | `prefers-color-scheme` for the page |
+| `--reduced-motion` | `prefers-reduced-motion: reduce` for the page |
 | `--out <dir>` | Snapshot folder |
 | `--prefix <text>` | File name prefix |
 | `--scale <n>` | Device pixel ratio (Playwright engines) |
@@ -611,7 +615,18 @@ for engine in webkitgtk chrome; do npx webview-preview /settings --engine $engin
 
 ```sh
 npx webview-preview / snap:wide resize:900x500 wait:300 snap:narrow
+npx webview-preview / snap:home --size 1200x650,800x600,480x800
 ```
+
+**Light and dark, with and without motion:**
+
+```sh
+for scheme in light dark; do npx webview-preview / snap:home-$scheme --color-scheme $scheme; done
+npx webview-preview / click:.menu-button snap:menu-open --reduced-motion
+```
+
+With `--reduced-motion` a page that respects it skips its transitions, so a snapshot right after a click shows the
+final state instead of a frame in the middle of the animation — and you see whether the page respects it at all.
 
 **Measure instead of looking** — sizes and positions are more reliable than eyes:
 

@@ -31,6 +31,21 @@ export const resolveUrl = (target, baseUrl) => {
 	return baseUrl.endsWith("/") ? `${baseUrl}${route.slice(1)}` : `${baseUrl}${route}`;
 }
 
+const COLOR_SCHEMES = ["light", "dark"];
+
+const parseSizes = value => {
+	const sizes = [].concat(value).flatMap(item => String(item).split(",")).map(item => item.trim()).filter(Boolean);
+	if (!sizes.length) throw new Error("size needs at least one WxH");
+	for (const size of sizes) parseSize(size);
+	return sizes;
+}
+
+const checkColorScheme = value => {
+	if (value === undefined) return undefined;
+	if (!COLOR_SCHEMES.includes(value)) throw new Error(`colorScheme must be ${COLOR_SCHEMES.join(" or ")}, got "${value}"`);
+	return value;
+}
+
 export const preview = async (options = {}) => {
 	const config = options.config === false ? {} : await loadConfig(options.config);
 	const merged = { ...DEFAULTS, ...config, ...Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined)) }
@@ -40,7 +55,8 @@ export const preview = async (options = {}) => {
 	const steps = parseSteps(expandMacros(merged.steps.length ? merged.steps : DEFAULTS.steps, macros));
 	const out = path.resolve(baseDir, merged.out);
 	const url = resolveUrl(merged.target ?? merged.url ?? "/", merged.baseUrl);
-	parseSize(merged.size);
+	const sizes = parseSizes(merged.size);
+	const colorScheme = checkColorScheme(merged.colorScheme);
 	const mockFiles = await resolveMockFiles(options.mockFile, process.cwd());
 	const hasMock = config.mock !== undefined || options.mock !== undefined || mockFiles.length > 0
 		|| !!(options.logRequests ?? config.logRequests);
@@ -72,21 +88,31 @@ export const preview = async (options = {}) => {
 	const server = merged.server && { cwd: baseDir, ...merged.server }
 	const stopServer = await startServer(server);
 	try {
-		const result = await runEngine(engine, {
-			url,
-			steps: [...steps, consoleStep],
-			init,
-			size: merged.size,
-			locale,
-			out,
-			prefix: merged.prefix ?? `${engine}-`,
-			scale: merged.scale === undefined ? undefined : Number(merged.scale),
-			snapMargin: Number(merged.snapMargin ?? 8),
-			isHeaded: !!merged.headed,
-			isStorageKept: !!merged.keepStorage,
-			waitForTimeoutMs: Number(merged.waitTimeout ?? 10000),
-			log: output.log
-		});
+		const prefix = merged.prefix ?? `${engine}-`;
+		const result = { saved: [], failed: false }
+		for (const size of sizes) {
+			if (sizes.length > 1) output.log.info(`size ${size}`);
+			const run = await runEngine(engine, {
+				url,
+				steps: [...steps, consoleStep],
+				init,
+				size,
+				locale,
+				colorScheme,
+				isMotionReduced: !!merged.reducedMotion,
+				out,
+				prefix: sizes.length > 1 ? `${prefix}${size}-` : prefix,
+				scale: merged.scale === undefined ? undefined : Number(merged.scale),
+				snapMargin: Number(merged.snapMargin ?? 8),
+				isHeaded: !!merged.headed,
+				isStorageKept: !!merged.keepStorage,
+				waitForTimeoutMs: Number(merged.waitTimeout ?? 10000),
+				log: output.log
+			});
+			result.saved.push(...run.saved);
+			result.failed ||= run.failed;
+		}
+		
 		const { consoleErrors, failedAsserts } = output.report();
 		const shouldCompare = !!(merged.compare || merged.updateBaseline);
 		const compareFailed = shouldCompare && compareSnapshots({
@@ -98,7 +124,7 @@ export const preview = async (options = {}) => {
 			log: merged.log ?? consoleLog
 		});
 		const consoleFailed = !!merged.failOnError && consoleErrors > 0;
-		return { engine, url, ...result, consoleErrors, failedAsserts, failed: result.failed || compareFailed || consoleFailed || failedAsserts > 0 }
+		return { engine, url, sizes, ...result, consoleErrors, failedAsserts, failed: result.failed || compareFailed || consoleFailed || failedAsserts > 0 }
 	} finally {
 		stopServer();
 	}

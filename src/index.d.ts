@@ -30,7 +30,9 @@ export interface PreviewConfig {
 	baseUrl?: string;
 	server?: ServerOptions;
 	engine?: Engine;
-	size?: `${number}x${number}`;
+	size?: Size | Size[] | string;
+	colorScheme?: "light" | "dark";
+	reducedMotion?: boolean;
 	out?: string;
 	prefix?: string;
 	scale?: number;
@@ -52,6 +54,8 @@ export interface PreviewConfig {
 	macros?: Record<string, Step[] | string[]>;
 	failOnError?: boolean;
 }
+
+export type Size = `${number}x${number}`;
 
 export interface TauriStub {
 	commands?: Record<string, unknown | ((args: Record<string, unknown>) => unknown)>;
@@ -84,6 +88,7 @@ export interface PreviewOptions extends PreviewConfig {
 export interface PreviewResult {
 	engine: Exclude<Engine, "auto">;
 	url: string;
+	sizes: string[];
 	saved: string[];
 	consoleErrors: number;
 	failedAsserts: number;

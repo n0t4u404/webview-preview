@@ -9,7 +9,12 @@ const PROBE = "import gi; gi.require_version('Gtk', '3.0'); gi.require_version('
 export const isWebkitGtkAvailable = () => process.platform === "linux"
 	&& spawnSync("python3", ["-c", PROBE], { stdio: "ignore" }).status === 0;
 
-export const runWebkitGtk = ({ url, steps, init = [], size, out, prefix, snapMargin = 8, isHeaded = false, isStorageKept = false, waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, timeoutMs = TIMEOUT_MS, log }) => new Promise((resolve, reject) => {
+export const runWebkitGtk = ({
+	url, steps, init = [], size, colorScheme,
+	isMotionReduced = false, out, prefix, snapMargin = 8,
+	isHeaded = false, isStorageKept = false,
+	waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, timeoutMs = TIMEOUT_MS, log
+}) => new Promise((resolve, reject) => {
 	if (!isWebkitGtkAvailable()) {
 		reject(new Error("WebKitGTK engine needs Linux with python3-gi and WebKit2 4.1 (gir1.2-webkit2-4.1)"));
 		return;
@@ -24,6 +29,8 @@ export const runWebkitGtk = ({ url, steps, init = [], size, out, prefix, snapMar
 		"--width", String(width),
 		"--height", String(height),
 		"--snap-margin", String(snapMargin),
+		...(colorScheme ? ["--color-scheme", colorScheme] : []),
+		...(isMotionReduced ? ["--reduced-motion"] : []),
 		...(isHeaded ? ["--headed"] : []),
 		...(isStorageKept ? ["--keep-storage"] : []),
 		"--wait-for-timeout-ms", String(waitForTimeoutMs),

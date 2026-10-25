@@ -16,7 +16,11 @@ const loadPlaywright = async () => {
 	}
 }
 
-export const runPlaywright = async ({ engine, url, steps, init = [], size, locale, out, prefix, scale, snapMargin = 8, waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, log }) => {
+export const runPlaywright = async ({
+	engine, url, steps, init = [], size, locale,
+	colorScheme, isMotionReduced = false, out, prefix, scale,
+	snapMargin = 8, waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, log
+}) => {
 	const playwright = await loadPlaywright();
 	const browserType = engine === "webkit" ? playwright.webkit : playwright.chromium;
 	const browser = await browserType.launch({ channel: CHANNELS[engine], headless: true });
@@ -24,7 +28,11 @@ export const runPlaywright = async ({ engine, url, steps, init = [], size, local
 	let failed = false;
 
 	try {
-		const page = await browser.newPage({ viewport: parseSize(size), deviceScaleFactor: scale ?? 1, locale });
+		const page = await browser.newPage({ viewport: parseSize(size), deviceScaleFactor: scale ?? 1,
+			locale,
+			colorScheme,
+			reducedMotion: isMotionReduced ? "reduce" : undefined
+		});
 		page.setDefaultTimeout(TIMEOUT_MS);
 		for (const content of init) await page.addInitScript({ content });
 		await page.goto(url, { waitUntil: "load" });

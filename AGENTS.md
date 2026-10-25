@@ -186,6 +186,19 @@ npx webview-preview /screen <steps> snap:screen "snap:panel@[data-test=panel]" -
 change is a regression to explain. Use a separate `--baseline` folder for such throw-away checks so you do not
 overwrite the project's committed baselines. Run `webview-preview clean` when you are done with the snapshots.
 
+## Sizes, theme and motion
+
+A layout change can break only the narrow window or only the dark theme. Check them in the same run instead of
+asking the user:
+
+```
+npx webview-preview /screen <steps> snap:screen --size 1200x650,800x600
+npx webview-preview /screen <steps> snap:screen --color-scheme dark
+```
+
+Each size runs the steps from the start and names the snapshots `<prefix><WxH>-<name>.png`. `--reduced-motion`
+makes a page that respects it skip its transitions, so a snapshot right after a click shows the final state.
+
 ## Still out of reach — and a few traps
 
 **Fractional scroll.** `scrollTop = 55.5` is rounded; real wheel and touchpad scrolling can stop between pixels. A

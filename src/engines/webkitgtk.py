@@ -43,6 +43,8 @@ def parse_args():
     parser.add_argument("--width", type=int, required=True)
     parser.add_argument("--height", type=int, required=True)
     parser.add_argument("--snap-margin", type=int, required=True)
+    parser.add_argument("--color-scheme", choices=("light", "dark"))
+    parser.add_argument("--reduced-motion", action="store_true")
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--keep-storage", action="store_true")
     parser.add_argument("--wait-for-timeout-ms", type=int, required=True)
@@ -67,8 +69,18 @@ def keyval_for(key):
     return Gdk.unicode_to_keyval(ord(key))
 
 
+def apply_media(args):
+    settings = Gtk.Settings.get_default()
+    if args.color_scheme:
+        settings.set_property("gtk-theme-name", "Adwaita")
+        settings.set_property("gtk-application-prefer-dark-theme", args.color_scheme == "dark")
+    if args.reduced_motion:
+        settings.set_property("gtk-enable-animations", False)
+
+
 def main():
     args = parse_args()
+    apply_media(args)
     payload = json.loads(sys.stdin.read())
     steps = payload["steps"]
     init_scripts = payload["init"]
