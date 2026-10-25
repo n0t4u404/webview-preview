@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
-import { cleanSnapshots, ENGINES, preview } from "#src/index.mjs";
+import { cleanSnapshots, ENGINES, preview, watchPreview } from "#src/index.mjs";
 
 const FLAGS = {
 	"--engine": "engine",
@@ -78,6 +78,8 @@ Options:
   --locale <tag>   navigator.language for the page: en-US, ru-RU … (Playwright: also Intl)
   --offline        start offline (the page itself still loads)
   --latency <ms>   delay every fetch/XHR request from the start
+  --watch          run again whenever a file changes (the config's watch, default src/ or the config's folder,
+                   plus the config file); the server stays up between runs
   --fail-on-error  exit with 1 when the page logged console.error or threw (they are always printed)
   --config <file>  config file (default: webview-preview.config.{mjs,js,json})
   --no-config      ignore config files
@@ -112,6 +114,10 @@ const parseArgs = argv => {
 		}
 		if (arg === "--headed") {
 			options.headed = true;
+			continue;
+		}
+		if (arg === "--watch") {
+			options.isWatching = true;
 			continue;
 		}
 		if (arg === "--offline") {
@@ -176,7 +182,18 @@ try {
 		console.log(`${cleanOptions.dryRun ? "would delete" : "deleted"} ${removed.length} snapshot(s) in ${out}`);
 		process.exit(0);
 	}
-	const result = await preview(parsed.options);
+	const { isWatching, ...previewOptions } = parsed.options;
+	if (isWatching) {
+		const stop = await watchPreview(previewOptions, result => {
+			for (const file of result.saved) console.log(file);
+		});
+		for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(signal, () => {
+			stop();
+			process.exit(0);
+		});
+		await new Promise(() => {});
+	}
+	const result = await preview(previewOptions);
 	for (const file of result.saved) console.log(file);
 	process.exit(result.failed ? 1 : 0);
 } catch (error) {

@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { compareSnapshots } from "#src/snapshots/compare.mjs";
 import { loadConfig } from "#src/core/config.mjs";
@@ -8,6 +8,7 @@ import { checkLocale, globalsScript, localeScript } from "#src/page/globals.mjs"
 import { resolveInit, wrapInit } from "#src/page/init.mjs";
 import { compileMock, mockScript, resolveMockFiles } from "#src/page/mock.mjs";
 import { startServer } from "#src/core/server.mjs";
+import { watchFiles } from "#src/core/watch.mjs";
 import { expandMacros, parseSize, parseSteps } from "#src/core/steps.mjs";
 import { checkLatency, networkScript } from "#src/page/network.mjs";
 import { resolveTauri, tauriScript } from "#src/page/tauri.mjs";
@@ -133,6 +134,62 @@ export const preview = async (options = {}) => {
 		const consoleFailed = !!merged.failOnError && consoleErrors > 0;
 		return { engine, url, sizes, ...result, consoleErrors, failedAsserts, failed: result.failed || compareFailed || consoleFailed || failedAsserts > 0 }
 	} finally {
+		stopServer();
+	}
+}
+
+export const watchPreview = async (options = {}, onRun = () => {}) => {
+	const config = options.config === false ? {} : await loadConfig(options.config);
+	const baseDir = config.configDir ?? process.cwd();
+	const log = options.log ?? consoleLog;
+	const entries = [].concat(options.watch ?? config.watch ?? (existsSync(path.join(baseDir, "src")) ? "src" : "."));
+	const folders = entries.map(entry => path.resolve(baseDir, entry));
+	const isConfigWatched = !config.configFile || folders.some(folder => config.configFile === folder || config.configFile.startsWith(folder + path.sep));
+	const targets = isConfigWatched ? folders : [...folders, config.configFile];
+	const ignore = [
+		path.resolve(baseDir, options.out ?? config.out ?? DEFAULTS.out),
+		path.resolve(baseDir, options.baseline ?? config.baseline ?? "webview-preview-baseline")
+	];
+	const server = options.server ?? config.server;
+	const stopServer = await startServer(server && { cwd: baseDir, ...server });
+	let isRunning = false;
+	let next = null;
+
+	const run = async reason => {
+		if (isRunning) {
+			next = reason;
+			return;
+		}
+		isRunning = true;
+		log.info(reason);
+		try {
+			onRun(await preview(options));
+		} catch (error) {
+			log.error(`webview-preview: ${error.message}`);
+		}
+		isRunning = false;
+		if (next) {
+			const queued = next;
+			next = null;
+			await run(queued);
+		}
+	}
+
+	let stopWatching;
+	try {
+		stopWatching = watchFiles({
+			targets,
+			ignore,
+			onChange: file => run(`\nchanged ${path.relative(baseDir, file) || file}, running again`)
+		});
+	} catch (error) {
+		stopServer();
+		throw error;
+	}
+	
+	await run(`watching ${targets.map(target => path.relative(baseDir, target) || ".").join(", ")}; Ctrl+C to stop`);
+	return () => {
+		stopWatching();
 		stopServer();
 	}
 }

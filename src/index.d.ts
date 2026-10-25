@@ -38,6 +38,7 @@ export interface PreviewConfig {
 	reducedMotion?: boolean;
 	offline?: boolean;
 	latency?: number;
+	watch?: string | string[];
 	out?: string;
 	prefix?: string;
 	scale?: number;
@@ -104,6 +105,7 @@ export declare const ENGINES: Engine[];
 export declare const REQUESTS_KEY: "__webviewPreviewRequests";
 export declare function resolveUrl(target: string, baseUrl?: string): string;
 export declare function preview(options?: PreviewOptions): Promise<PreviewResult>;
+export declare function watchPreview(options?: PreviewOptions, onRun?: (result: PreviewResult) => void): Promise<() => void>;
 export declare function defineConfig(config: PreviewConfig): PreviewConfig;
 export declare function anyApi(members?: Record<string, unknown>): AnyApi;
 export interface CleanOptions {

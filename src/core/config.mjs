@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -10,7 +10,8 @@ export const loadConfig = async (configPath, cwd = process.cwd()) => {
 		: CONFIG_FILES.map(name => path.join(cwd, name)).find(candidate => existsSync(candidate));
 	if (!file) return {}
 	if (!existsSync(file)) throw new Error(`Config not found: ${file}`);
-	if (file.endsWith(".json")) return { ...JSON.parse(readFileSync(file, "utf8")), configDir: path.dirname(file) }
-	const module = await import(pathToFileURL(file).href);
-	return { ...(module.default ?? module), configDir: path.dirname(file) }
+	const where = { configDir: path.dirname(file), configFile: file }
+	if (file.endsWith(".json")) return { ...JSON.parse(readFileSync(file, "utf8")), ...where }
+	const module = await import(`${pathToFileURL(file).href}?mtime=${statSync(file).mtimeMs}`);
+	return { ...(module.default ?? module), ...where }
 }

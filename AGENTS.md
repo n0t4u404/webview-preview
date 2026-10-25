@@ -16,6 +16,9 @@ Read the [README](./README.md) for install and options. Everything here assumes 
 4. Open the PNG only after the numbers make sense. Crop it to the area you care about before looking.
 5. Change, run again, compare the same numbers.
 
+Do not use `--watch`: it never exits. It is for a person keeping a snapshot open while editing; you run the command
+again after each change.
+
 When you report back, say which engine you checked and what you could **not** check (see the limits below).
 
 ## Writing steps

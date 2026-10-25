@@ -159,6 +159,7 @@ npx webview-preview /settings snap:settings
 | `size` | Window size in CSS pixels, `WxH`. Several sizes — `"1200x650,800x600"` or a list — run the steps once per size; snapshots get the size in the name: `webkitgtk-800x600-page.png`. | `1200x650` |
 | `colorScheme` | `prefers-color-scheme` for the page: `light` or `dark`. | system |
 | `reducedMotion` | `prefers-reduced-motion: reduce` for the page. | `false` |
+| `watch` | What `--watch` follows: a folder, a file or a list, relative to the config's folder. The config file itself is always followed. | `src` if it exists, else the config's folder |
 | `offline` / `latency` | Start offline / delay every `fetch` / XHR request by ms. See [Slow network and offline](#4-slow-network-and-offline). | `false` / `0` |
 | `out` | Snapshot folder, relative to the config's folder. | `.webview-preview` |
 | `prefix` | File name prefix. | `<engine>-` |
@@ -324,6 +325,7 @@ webview-preview [route-or-url] [steps...] [options]
 | `--size <WxH>` | Window size; several, comma-separated: `1200x650,800x600` |
 | `--color-scheme <light\|dark>` | `prefers-color-scheme` for the page |
 | `--reduced-motion` | `prefers-reduced-motion: reduce` for the page |
+| `--watch` | Run again whenever a file changes; the server stays up between runs. Ctrl+C to stop |
 | `--offline` / `--latency <ms>` | Start offline / delay every `fetch` / XHR request |
 | `--out <dir>` | Snapshot folder |
 | `--prefix <text>` | File name prefix |
@@ -379,6 +381,9 @@ result.failed; // false
 
 `preview()` reads the config file the same way the CLI does; pass `config: false` to skip it or `config: "path"` to
 choose one. Types are included.
+
+`watchPreview(options, onRun)` is `--watch`: it runs once, then again on every change, calls `onRun(result)` after
+each run and resolves to a function that stops watching and the server.
 
 ## Login, backend and other things outside the page
 
@@ -637,6 +642,15 @@ for engine in webkitgtk chrome; do npx webview-preview /settings --engine $engin
 npx webview-preview / snap:wide resize:900x500 wait:300 snap:narrow
 npx webview-preview / snap:home --size 1200x650,800x600,480x800
 ```
+
+**Keep a snapshot fresh while you edit** — leave it running next to the editor and keep the PNG open:
+
+```sh
+npx webview-preview /settings waitfor:.settings snap:settings "measure:.settings" --watch
+```
+
+Every save runs the steps again from a clean page (the dev server stays up), prints the numbers and rewrites the
+snapshot. A change of the config file is picked up too.
 
 **Light and dark, with and without motion:**
 
