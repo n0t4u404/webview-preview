@@ -63,6 +63,13 @@ element.getClientRects().length > 0
 If the project's config has macros (`macros` in `webview-preview.config.mjs` — signing in, opening a dialog), use them
 (`macro:signIn`): they are already correct. A flow you repeat more than twice belongs there too.
 
+## Errors in the page
+
+After the steps the tool prints the page's `console.error` calls, uncaught exceptions and unhandled rejections
+(`console.error: …`, `uncaught: …`, `unhandled rejection: …`). Read them before you look at a snapshot: a blank or
+half-rendered picture almost always has its cause there. Mention any you did not cause — they may be bugs the user
+should know about. Add `--fail-on-error` when the run must fail on them.
+
 ## Measuring
 
 Start with `measure:<selector>` — one line with position, size, box, visibility, font, colours and text:

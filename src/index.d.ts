@@ -47,6 +47,7 @@ export interface PreviewConfig {
 	globals?: Record<string, unknown>;
 	locale?: string;
 	macros?: Record<string, Step[] | string[]>;
+	failOnError?: boolean;
 }
 
 export interface TauriStub {
@@ -81,6 +82,7 @@ export interface PreviewResult {
 	engine: Exclude<Engine, "auto">;
 	url: string;
 	saved: string[];
+	consoleErrors: number;
 	failed: boolean;
 }
 

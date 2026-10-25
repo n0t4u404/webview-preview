@@ -27,6 +27,7 @@ plain init scripts and fit there too.
 - [Config file](#config-file)
 - [Steps](#steps)
 - [Macros](#macros)
+- [Errors in the page](#errors-in-the-page)
 - [Command line](#command-line)
 - [JavaScript API](#javascript-api)
 - [Login, backend and other things outside the page](#login-backend-and-other-things-outside-the-page)
@@ -171,6 +172,7 @@ npx webview-preview /settings snap:settings
 | `globals` | Objects to put on `window` before the page starts, by path: `{ "window.api": anyApi({ … }) }`. See [Desktop bridges](#desktop-bridges-tauri-electron-wails). | — |
 | `locale` | `navigator.language` for the page, `en-US`, `ru-RU` … Playwright engines also switch `Intl` and `Accept-Language`; WebKitGTK only `navigator.language`. | system |
 | `macros` | Named lists of steps, run with `macro:<name>`. See [Macros](#macros). | — |
+| `failOnError` | Exit with 1 when the page logged `console.error` or threw. See [Errors in the page](#errors-in-the-page). | `false` |
 
 Command-line options win over the config file.
 
@@ -288,6 +290,21 @@ npx webview-preview / macro:openSettings snap:settings
 A macro may run other macros; one that runs itself stops with an error. Prefer real clicks and typing over setting
 values from code: the run then goes through the same handlers, focus and validation as for a person.
 
+## Errors in the page
+
+Every run collects what went wrong inside the page — `console.error` calls, uncaught exceptions and unhandled promise
+rejections — and prints them after the steps, the same message once with a count:
+
+```
+console.error: Failed to load {"code":500} (×2)
+unhandled rejection: Error: no session — global code@http://localhost:5173/src/app.tsx:4:25
+uncaught: TypeError: null is not an object (evaluating 'user.name') — onclick@http://localhost:5173/src/app.tsx:12:5
+```
+
+A blank snapshot usually has its reason here. With `--fail-on-error` (`failOnError: true`) the run exits with 1 when
+there is anything to print — useful in CI. Pages opened from `file://` report uncaught errors only as
+"Script error." in WebKit; serve the page over `http://` to see them.
+
 ## Command line
 
 ```
@@ -314,6 +331,7 @@ webview-preview [route-or-url] [steps...] [options]
 | `--log-requests` | Only list requests, answer nothing |
 | `--tauri` | Stub the Tauri bridge (answers from `tauri.commands` in the config) |
 | `--locale <tag>` | `navigator.language` for the page |
+| `--fail-on-error` | Exit with 1 when the page logged `console.error` or threw |
 | `--config <file>` | Use this config file |
 | `--no-config` | Ignore config files |
 | `-h`, `--help` / `-v`, `--version` | |

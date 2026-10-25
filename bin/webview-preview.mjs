@@ -67,6 +67,7 @@ Options:
   --tauri          stub the Tauri bridge (invoke, events, window); answers come from
                    tauri.commands in the config, anything else gets null
   --locale <tag>   navigator.language for the page: en-US, ru-RU … (Playwright: also Intl)
+  --fail-on-error  exit with 1 when the page logged console.error or threw (they are always printed)
   --config <file>  config file (default: webview-preview.config.{mjs,js,json})
   --no-config      ignore config files
 
@@ -100,6 +101,10 @@ const parseArgs = argv => {
 		}
 		if (arg === "--headed") {
 			options.headed = true;
+			continue;
+		}
+		if (arg === "--fail-on-error") {
+			options.failOnError = true;
 			continue;
 		}
 		if (arg === "--tauri") {

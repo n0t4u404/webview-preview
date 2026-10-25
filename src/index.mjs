@@ -3,6 +3,7 @@ import path from "node:path";
 import { compareSnapshots } from "#src/snapshots/compare.mjs";
 import { loadConfig } from "#src/core/config.mjs";
 import { resolveEngine, runEngine } from "#src/engines/index.mjs";
+import { consoleScript, consoleStep, watchConsole } from "#src/page/console.mjs";
 import { checkLocale, globalsScript, localeScript } from "#src/page/globals.mjs";
 import { resolveInit, wrapInit } from "#src/page/init.mjs";
 import { compileMock, mockScript, resolveMockFiles } from "#src/page/mock.mjs";
@@ -26,7 +27,8 @@ const consoleLog = {
 export const resolveUrl = (target, baseUrl) => {
 	if (ABSOLUTE_URL.test(target)) return target;
 	if (!baseUrl) throw new Error(`"${target}" is not a full URL; set baseUrl to open routes`);
-	return `${baseUrl}${target.startsWith("/") ? target : `/${target}`}`;
+	const route = target.startsWith("/") ? target : `/${target}`;
+	return baseUrl.endsWith("/") ? `${baseUrl}${route.slice(1)}` : `${baseUrl}${route}`;
 }
 
 export const preview = async (options = {}) => {
@@ -47,6 +49,7 @@ export const preview = async (options = {}) => {
 	const tauri = resolveTauri(config.tauri, options.tauri);
 	const globals = { ...config.globals, ...options.globals }
 	const stubs = [
+		{ label: "console", source: consoleScript() },
 		locale && { label: "locale", source: localeScript(locale) },
 		tauri && { label: "tauri", source: tauriScript(tauri) },
 		Object.keys(globals).length && { label: "globals", source: globalsScript(globals) }
@@ -65,12 +68,13 @@ export const preview = async (options = {}) => {
 	], baseDir));
 	mkdirSync(out, { recursive: true });
 
+	const consoleWatch = watchConsole(merged.log ?? consoleLog);
 	const server = merged.server && { cwd: baseDir, ...merged.server }
 	const stopServer = await startServer(server);
 	try {
 		const result = await runEngine(engine, {
 			url,
-			steps,
+			steps: [...steps, consoleStep],
 			init,
 			size: merged.size,
 			locale,
@@ -81,8 +85,9 @@ export const preview = async (options = {}) => {
 			isHeaded: !!merged.headed,
 			isStorageKept: !!merged.keepStorage,
 			waitForTimeoutMs: Number(merged.waitTimeout ?? 10000),
-			log: merged.log ?? consoleLog
+			log: consoleWatch.log
 		});
+		const consoleErrors = consoleWatch.report();
 		const shouldCompare = !!(merged.compare || merged.updateBaseline);
 		const compareFailed = shouldCompare && compareSnapshots({
 			saved: result.saved,
@@ -92,7 +97,8 @@ export const preview = async (options = {}) => {
 			maxDiffPixels: Number(merged.maxDiffPixels ?? 0),
 			log: merged.log ?? consoleLog
 		});
-		return { engine, url, ...result, failed: result.failed || compareFailed }
+		const consoleFailed = !!merged.failOnError && consoleErrors > 0;
+		return { engine, url, ...result, consoleErrors, failed: result.failed || compareFailed || consoleFailed }
 	} finally {
 		stopServer();
 	}
