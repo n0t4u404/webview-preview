@@ -1,4 +1,4 @@
-import { ASSERT_MARKER } from "#src/core/steps.mjs";
+import { ASSERT_MARKER, FOCUS_MARKER } from "#src/core/steps.mjs";
 
 export const CONSOLE_KEY = "__webviewPreviewConsole";
 const MARKER = "__webviewPreviewConsole:";
@@ -41,6 +41,16 @@ export const consoleStep = { kind: "print", value: `"${MARKER}" + JSON.stringify
 export const watchOutput = log => {
 	const entries = [];
 	let failedAsserts = 0;
+	let focus = null;
+	const printFocus = () => {
+		const { presses, items } = focus;
+		const firstPath = items[0]?.path;
+		const loopAt = items.findIndex((item, index) => index > 0 && item.path !== undefined && item.path === firstPath);
+		const shown = loopAt === -1 ? items : items.slice(0, loopAt);
+		log.info(`focus order (Tab ×${presses}):`);
+		shown.forEach((item, index) => log.info(`  ${index + 1}. ${item.label ?? "(nothing focused)"}`));
+		if (loopAt !== -1) log.info(`  → back to 1 after ${loopAt} stop${loopAt === 1 ? "" : "s"}`);
+	}
 	const info = message => {
 		if (typeof message !== "string") return log.info(message);
 		if (message.startsWith(MARKER)) {
@@ -48,6 +58,16 @@ export const watchOutput = log => {
 			return;
 		}
 		
+		if (message.startsWith(FOCUS_MARKER)) {
+			const [type, value, path] = JSON.parse(message.slice(FOCUS_MARKER.length));
+			if (type === "start") focus = { presses: value, items: [] }
+			else if (type === "item" && focus) focus.items.push({ label: value, path });
+			else if (type === "end" && focus) {
+				printFocus();
+				focus = null;
+			}
+			return;
+		}
 		if (message.startsWith(ASSERT_MARKER)) {
 			const [expression, problem] = JSON.parse(message.slice(ASSERT_MARKER.length));
 			if (problem === null) return log.info(`assert ok: ${expression}`);

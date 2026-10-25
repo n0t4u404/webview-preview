@@ -159,6 +159,7 @@ Use the real input steps, not `js:` clicks, whenever the question is about what 
 | Question | Steps |
 |---|---|
 | Does Tab go in the right order, does a focus trap hold? | `click:` the first field, then `key:Tab` / `key:Shift+Tab`, `print:document.activeElement…` after each |
+| Does Tab go through the right elements, in order, and stay inside a dialog? | `focusorder` (after opening the dialog); every stop should say `in dialog`, and it should loop back |
 | Is the focus ring visible and not clipped? | `key:Tab` until the element is focused, then `snap:ring@<selector>` (8 px margin included) |
 | Does the hover state look right? | `hover:<selector>`, `wait:300` for the transition, `snap:x@<selector>` |
 | Does typing work (validation, masks, Cyrillic…)? | `click:<input>`, `type:<text>`, `print:` the value / error text |

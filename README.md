@@ -224,6 +224,7 @@ Steps run one after another, after the page has loaded and settled for 1.5 s.
 | `click:<selector>` | Clicks the middle of the element with the real mouse — focus moves, `:active` and `:focus` apply like for a person. |
 | `print:<expression>` | Prints the value: strings as they are, DOM elements as their HTML (first 200 characters), everything else as JSON. Promises are not awaited. |
 | `measure:<selector>` | Prints one line about the element: how many match, position and size, margin / padding / border, visible or hidden, display, opacity, font, colours and text. |
+| `focusorder` / `focusorder:<n>` | Presses `Tab` with the real keyboard n times (20 by default) and prints where focus went, one line per stop — tag, role, name, label, "in dialog" — and `→ back to 1 after N stops` when it loops. Shows a focus trap, a skipped field or focus escaping a dialog at a glance. Starts from the current focus. |
 | `assert:<expression>` | Checks that the expression is truthy: prints `assert ok: …`, or `assert failed: … — got <value>` / `— threw <message>` and makes the run exit with 1. The other steps still run. |
 | `resize:<W>x<H>` | Resizes the window. |
 | `macro:<name>` | Runs the steps of a macro from the config. See [Macros](#macros). |

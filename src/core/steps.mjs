@@ -4,8 +4,11 @@ export const TIMEOUT_MS = 30000;
 export const WAIT_FOR_TIMEOUT_MS = 10000;
 export const WAIT_FOR_POLL_MS = 50;
 
-const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "resize", "key", "type", "hover", "click"]);
+const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "focusorder", "resize", "key", "type", "hover", "click"]);
 export const ASSERT_MARKER = "__webviewPreviewAssert:";
+export const FOCUS_MARKER = "__webviewPreviewFocus:";
+const FOCUS_ORDER_DEFAULT = 20;
+const FOCUS_ORDER_MAX = 200;
 const MODIFIERS = { Shift: "Shift", Control: "Control", Ctrl: "Control", Alt: "Alt", Meta: "Meta" }
 export const KEY_NAMES = [
 	"Tab", "Enter", "Escape", "Backspace", "Delete", "Insert", "Space", "Home", "End", "PageUp", "PageDown",
@@ -102,6 +105,34 @@ const assertExpression = expression => `(() => {
 	}
 })()`;
 
+const FOCUS_DESCRIBE = `(() => {
+	const element = document.activeElement;
+	if (!element || element === document.body || element === document.documentElement) return ${JSON.stringify(FOCUS_MARKER)} + JSON.stringify(["item", null]);
+	const tag = element.tagName.toLowerCase();
+	const role = element.getAttribute("role");
+	const name = element.getAttribute("name");
+	const type = tag === "input" ? element.getAttribute("type") : null;
+	const label = (element.getAttribute("aria-label") || (element.labels && element.labels[0] ? element.labels[0].innerText : "") || element.getAttribute("placeholder") || element.innerText || element.value || element.getAttribute("title") || "").replace(/\\s+/g, " ").trim().slice(0, 40);
+	const parts = [tag + (role ? "[role=" + role + "]" : "") + (name ? "[name=" + name + "]" : "") + (type ? "[type=" + type + "]" : "")];
+	if (element.id && !/^(:|_r_|«)/.test(element.id)) parts[0] += "#" + element.id;
+	if (label) parts.push(JSON.stringify(label));
+	const dialog = element.closest("[role=dialog], dialog");
+	if (dialog) parts.push("in dialog");
+	const path = [];
+	for (let node = element; node && node.nodeType === 1; node = node.parentElement) path.unshift(node.tagName + ":" + [...(node.parentElement ? node.parentElement.children : [])].indexOf(node));
+	return ${JSON.stringify(FOCUS_MARKER)} + JSON.stringify(["item", parts.join(" "), path.join("/")]);
+})()`;
+
+const focusOrderSteps = (value, step) => {
+	const count = value === "" ? FOCUS_ORDER_DEFAULT : Number(value);
+	if (!Number.isInteger(count) || count < 1 || count > FOCUS_ORDER_MAX) throw new Error(`focusorder takes how many Tab presses, 1-${FOCUS_ORDER_MAX}, got "${step}"`);
+	return [
+		{ kind: "print", value: `${JSON.stringify(FOCUS_MARKER)} + JSON.stringify(["start", ${count}])` },
+		...Array.from({ length: count }, () => [{ kind: "key", value: "Tab", key: "Tab", modifiers: [] }, { kind: "print", value: FOCUS_DESCRIBE }]).flat(),
+		{ kind: "print", value: `${JSON.stringify(FOCUS_MARKER)} + JSON.stringify(["end"])` }
+	];
+}
+
 const measureExpression = selector => `(${MEASURE_FUNCTION})(${JSON.stringify(selector)}, ${QUERY_FUNCTION}, ${VISIBLE_FUNCTION})`;
 
 const rectExpression = (selector, isScrolled) => `(() => {
@@ -151,7 +182,7 @@ export const parseSize = value => {
 	return { width: Number(match[1]), height: Number(match[2]) }
 }
 
-export const parseSteps = steps => steps.map(step => {
+export const parseSteps = steps => steps.flatMap(step => {
 	const separator = step.indexOf(":");
 	const kind = separator === -1 ? step : step.slice(0, separator);
 	const value = separator === -1 ? "" : step.slice(separator + 1);
@@ -178,6 +209,7 @@ export const parseSteps = steps => steps.map(step => {
 		if (!selector) throw new Error(`waitfor needs a selector, got "${step}"`);
 		return { kind, value, check: waitForExpression(selector, isGone) }
 	}
+	if (kind === "focusorder") return focusOrderSteps(value, step);
 	if (kind === "assert") {
 		if (!value) throw new Error(`assert needs an expression, got "${step}"`);
 		return { kind: "print", value: assertExpression(value), assert: value }

@@ -7,6 +7,8 @@ export type Step =
 	| `waitfor:${string}`
 	| `measure:${string}`
 	| `assert:${string}`
+	| "focusorder"
+	| `focusorder:${number}`
 	| `snap:${string}`
 	| `print:${string}`
 	| `resize:${number}x${number}`
