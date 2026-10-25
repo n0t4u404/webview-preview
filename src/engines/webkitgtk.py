@@ -15,6 +15,10 @@ from gi.repository import Gdk, GLib, Gtk, WebKit2
 
 INPUT_SETTLE_MS = 50
 UNSUPPORTED_RESULT = "Unsupported result type"
+KEY_POLL_MS = 20
+KEY_WAIT_MS = 2000
+KEYUPS = "window.__webviewPreviewKeyups || 0"
+KEYUP_COUNTER = "addEventListener('keyup', () => { window.__webviewPreviewKeyups = (window.__webviewPreviewKeyups || 0) + 1 }, true);"
 GDK_KEY_NAMES = {
     "Tab": "Tab", "Enter": "Return", "Escape": "Escape", "Backspace": "BackSpace", "Delete": "Delete",
     "Insert": "Insert", "Space": "space", "Home": "Home", "End": "End", "PageUp": "Page_Up", "PageDown": "Page_Down",
@@ -91,7 +95,7 @@ def main():
     window.set_default_size(args.width, args.height)
     window.set_size_request(args.width, args.height)
     manager = WebKit2.UserContentManager()
-    for source in init_scripts:
+    for source in [KEYUP_COUNTER, *init_scripts]:
         manager.add_script(WebKit2.UserScript.new(
             source,
             WebKit2.UserContentInjectedFrames.TOP_FRAME,
@@ -157,6 +161,29 @@ def main():
         for modifier in reversed(modifiers):
             key_event(Gdk.EventType.KEY_RELEASE, Gdk.keyval_from_name(MODIFIER_KEYS[modifier]), mask)
             mask &= ~MODIFIER_MASKS[modifier]
+
+    def press_all(presses):
+        def count(text):
+            return int(text) if text and text.isdigit() else 0
+
+        def send(text):
+            expected = count(text) + sum(1 + len(modifiers) for _, modifiers in presses)
+            for keyval, modifiers in presses:
+                press(keyval, modifiers)
+            started = GLib.get_monotonic_time()
+
+            def check():
+                def on_value(text):
+                    if count(text) >= expected or (GLib.get_monotonic_time() - started) / 1000 >= KEY_WAIT_MS:
+                        GLib.timeout_add(INPUT_SETTLE_MS, run_step)
+                    else:
+                        GLib.timeout_add(KEY_POLL_MS, lambda: (check(), False)[1])
+
+                evaluate(KEYUPS, on_value, lambda _: GLib.timeout_add(INPUT_SETTLE_MS, run_step))
+
+            check()
+
+        evaluate(KEYUPS, send, lambda _: send("0"))
 
     def mouse(kind, x, y):
         event = Gdk.Event.new(kind)
@@ -325,12 +352,9 @@ def main():
         elif kind in ("hover", "click"):
             with_rect(step, lambda rect: point_at(step, rect))
         elif kind == "key":
-            press(keyval_for(step["key"]), step["modifiers"])
-            GLib.timeout_add(INPUT_SETTLE_MS, run_step)
+            press_all([(keyval_for(step["key"]), step["modifiers"])])
         elif kind == "type":
-            for character in value:
-                press(Gdk.unicode_to_keyval(ord(character)))
-            GLib.timeout_add(INPUT_SETTLE_MS, run_step)
+            press_all([(Gdk.unicode_to_keyval(ord(character)), ()) for character in value])
         return False
 
     def start_steps():
