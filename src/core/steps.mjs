@@ -112,6 +112,19 @@ const parseKey = combo => {
 	return { key, modifiers }
 }
 
+export const expandMacros = (steps, macros = {}, trail = []) => steps.flatMap(step => {
+	if (!step.startsWith("macro:")) return [step];
+	const name = step.slice(6);
+	if (!Object.hasOwn(macros, name)) {
+		const known = Object.keys(macros);
+		throw new Error(`Unknown macro "${name}". Macros: ${known.length ? known.join(", ") : "none — add them to macros in the config"}`);
+	}
+	if (trail.includes(name)) throw new Error(`macro:${name} uses itself: ${[...trail, name].join(" → ")}`);
+	const body = macros[name];
+	if (!Array.isArray(body) || !body.every(item => typeof item === "string")) throw new Error(`macro "${name}" must be a list of steps`);
+	return expandMacros(body, macros, [...trail, name]);
+})
+
 export const parseSize = value => {
 	const match = /^(\d+)x(\d+)$/.exec(String(value));
 	if (!match) throw new Error(`Size must look like 1200x650, got "${value}"`);
@@ -122,7 +135,7 @@ export const parseSteps = steps => steps.map(step => {
 	const separator = step.indexOf(":");
 	const kind = separator === -1 ? step : step.slice(0, separator);
 	const value = separator === -1 ? "" : step.slice(separator + 1);
-	if (!STEP_KINDS.has(kind)) throw new Error(`Unknown step "${step}". Steps: ${[...STEP_KINDS].join(", ")}`);
+	if (!STEP_KINDS.has(kind)) throw new Error(`Unknown step "${step}". Steps: ${[...STEP_KINDS, "macro"].join(", ")}`);
 	if (kind === "wait" && !/^\d+$/.test(value)) throw new Error(`wait needs milliseconds, got "${step}"`);
 	if (kind === "resize") parseSize(value);
 	if (kind === "snap") {

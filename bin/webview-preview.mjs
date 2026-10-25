@@ -2,7 +2,22 @@
 import { readFileSync } from "node:fs";
 import { cleanSnapshots, ENGINES, preview } from "#src/index.mjs";
 
-const FLAGS = { "--engine": "engine", "--size": "size", "--out": "out", "--prefix": "prefix", "--scale": "scale", "--config": "config", "--base-url": "baseUrl", "--snap-margin": "snapMargin", "--baseline": "baseline", "--max-diff-pixels": "maxDiffPixels", "--compare-tolerance": "compareTolerance", "--older-than": "olderThan", "--wait-timeout": "waitTimeout" }
+const FLAGS = {
+	"--engine": "engine",
+	"--size": "size",
+	"--out": "out",
+	"--prefix": "prefix",
+	"--scale": "scale",
+	"--config": "config",
+	"--base-url": "baseUrl",
+	"--snap-margin": "snapMargin",
+	"--baseline": "baseline",
+	"--max-diff-pixels": "maxDiffPixels",
+	"--compare-tolerance": "compareTolerance",
+	"--older-than": "olderThan",
+	"--wait-timeout": "waitTimeout",
+	"--locale": "locale"
+}
 const LIST_FLAGS = { "--init": "init", "--init-file": "initFile", "--mock-file": "mockFile" }
 
 const HELP = `Usage: webview-preview [route-or-url] [steps...] [options]
@@ -25,6 +40,7 @@ Steps:
   type:<text>      type text with the keyboard
   hover:<css selector>  move the mouse to the element's centre
   click:<css selector>  click the element's centre with the mouse
+  macro:<name>     run the steps of a macro from the config (macros: { name: [...] })
 
 Options:
   --engine <name>  ${ENGINES.join(" | ")} (default: auto)
@@ -48,6 +64,9 @@ Options:
   --mock-file <f>  answer fetch/XHR requests from a .json/.mjs file of mocks (repeatable);
                    every request is listed in window.__webviewPreviewRequests
   --log-requests   only list fetch/XHR requests in window.__webviewPreviewRequests
+  --tauri          stub the Tauri bridge (invoke, events, window); answers come from
+                   tauri.commands in the config, anything else gets null
+  --locale <tag>   navigator.language for the page: en-US, ru-RU … (Playwright: also Intl)
   --config <file>  config file (default: webview-preview.config.{mjs,js,json})
   --no-config      ignore config files
 
@@ -81,6 +100,10 @@ const parseArgs = argv => {
 		}
 		if (arg === "--headed") {
 			options.headed = true;
+			continue;
+		}
+		if (arg === "--tauri") {
+			options.tauri = true;
 			continue;
 		}
 		if (arg === "--log-requests") {

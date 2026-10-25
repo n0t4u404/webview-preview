@@ -15,7 +15,7 @@ const readEntry = (entry, baseDir, index) => {
 	throw new Error(`init entries must be code strings or { file: "path" }, got ${JSON.stringify(entry)}`);
 }
 
-const wrap = ({ label, source }) => `{
+export const wrapInit = ({ label, source }) => `{
 	try {
 		${source}
 	} catch (error) {
@@ -25,7 +25,7 @@ const wrap = ({ label, source }) => `{
 
 export const resolveInit = (groups, baseDir) => groups
 	.flatMap(group => toList(group.entries).map(entry => ({ entry, baseDir: group.baseDir })))
-	.map(({ entry, baseDir: dir }, index) => wrap(readEntry(entry, dir ?? baseDir, index)));
+	.map(({ entry, baseDir: dir }, index) => wrapInit(readEntry(entry, dir ?? baseDir, index)));
 
 export const reportInitErrors = (json, log) => {
 	for (const message of JSON.parse(json || "[]")) log.error(`init failed: ${message}`);

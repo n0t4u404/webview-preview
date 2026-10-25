@@ -12,7 +12,8 @@ export type Step =
 	| `key:${string}`
 	| `type:${string}`
 	| `hover:${string}`
-	| `click:${string}`;
+	| `click:${string}`
+	| `macro:${string}`;
 
 export interface ServerOptions {
 	command: string;
@@ -42,6 +43,19 @@ export interface PreviewConfig {
 	baseline?: string;
 	maxDiffPixels?: number;
 	compareTolerance?: number;
+	tauri?: boolean | TauriStub;
+	globals?: Record<string, unknown>;
+	locale?: string;
+	macros?: Record<string, Step[] | string[]>;
+}
+
+export interface TauriStub {
+	commands?: Record<string, unknown | ((args: Record<string, unknown>) => unknown)>;
+	label?: string;
+}
+
+export interface AnyApi {
+	readonly members: Record<string, unknown>;
 }
 
 export interface MockResponse {
@@ -75,6 +89,7 @@ export declare const REQUESTS_KEY: "__webviewPreviewRequests";
 export declare function resolveUrl(target: string, baseUrl?: string): string;
 export declare function preview(options?: PreviewOptions): Promise<PreviewResult>;
 export declare function defineConfig(config: PreviewConfig): PreviewConfig;
+export declare function anyApi(members?: Record<string, unknown>): AnyApi;
 export interface CleanOptions {
 	config?: string | false;
 	out?: string;
