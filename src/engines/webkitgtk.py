@@ -14,6 +14,7 @@ gi.require_version("WebKit2", "4.1")
 from gi.repository import Gdk, GLib, Gtk, WebKit2
 
 INPUT_SETTLE_MS = 50
+UNSUPPORTED_RESULT = "Unsupported result type"
 GDK_KEY_NAMES = {
     "Tab": "Tab", "Enter": "Return", "Escape": "Escape", "Backspace": "BackSpace", "Delete": "Delete",
     "Insert": "Insert", "Space": "space", "Home": "Home", "End": "End", "PageUp": "Page_Up", "PageDown": "Page_Down",
@@ -259,7 +260,7 @@ def main():
                 save(value, full_pixbuf())
                 next_step()
         elif kind in ("js", "jsnow"):
-            evaluate(value, lambda _: None, lambda error: emit("error", f"js failed: {error}"))
+            evaluate(value, lambda _: None, lambda error: None if UNSUPPORTED_RESULT in error else emit("error", f"js failed: {error}"))
             if kind == "js":
                 GLib.timeout_add(args.js_settle_ms, run_step)
             else:

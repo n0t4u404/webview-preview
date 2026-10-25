@@ -152,6 +152,10 @@ Put the result in the project's `webview-preview.config.mjs` (or `preview/mocks.
 person's — gets there in one command. Mention in your report which requests you mocked and with what data; mocked
 data can hide a real bug in how the app handles the real server.
 
+Loading and offline states are reachable too: `--latency 2000` (or the step `latency:2000`) keeps every request
+waiting, so you can snap the spinner or skeleton; `offline` / `online` steps drop the connection for `fetch` / XHR,
+switch `navigator.onLine` and fire the events, so an app's offline banner or retry logic shows up for real.
+
 ## Keyboard, mouse and focus
 
 Use the real input steps, not `js:` clicks, whenever the question is about what a person experiences:

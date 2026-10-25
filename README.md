@@ -159,6 +159,7 @@ npx webview-preview /settings snap:settings
 | `size` | Window size in CSS pixels, `WxH`. Several sizes — `"1200x650,800x600"` or a list — run the steps once per size; snapshots get the size in the name: `webkitgtk-800x600-page.png`. | `1200x650` |
 | `colorScheme` | `prefers-color-scheme` for the page: `light` or `dark`. | system |
 | `reducedMotion` | `prefers-reduced-motion: reduce` for the page. | `false` |
+| `offline` / `latency` | Start offline / delay every `fetch` / XHR request by ms. See [Slow network and offline](#4-slow-network-and-offline). | `false` / `0` |
 | `out` | Snapshot folder, relative to the config's folder. | `.webview-preview` |
 | `prefix` | File name prefix. | `<engine>-` |
 | `scale` | Device pixel ratio for Playwright engines (`2` = HiDPI). WebKitGTK: off-screen snapshots are 1×, `--headed` ones follow your screen. | `1` |
@@ -226,6 +227,8 @@ Steps run one after another, after the page has loaded and settled for 1.5 s.
 | `click:<selector>` | Clicks the middle of the element with the real mouse — focus moves, `:active` and `:focus` apply like for a person. |
 | `print:<expression>` | Prints the value: strings as they are, DOM elements as their HTML (first 200 characters), everything else as JSON. Promises are not awaited. |
 | `measure:<selector>` | Prints one line about the element: how many match, position and size, margin / padding / border, visible or hidden, display, opacity, font, colours and text. |
+| `offline` / `online` | Drops the connection for `fetch` / XHR and brings it back, with `navigator.onLine` and the events, then waits 700 ms like `js:`. See [Slow network and offline](#4-slow-network-and-offline). |
+| `latency:<ms>` | Delays every `fetch` / XHR request from now on; `latency:0` turns it off. |
 | `focusorder` / `focusorder:<n>` | Presses `Tab` with the real keyboard n times (20 by default) and prints where focus went, one line per stop — tag, role, name, label, "in dialog" — and `→ back to 1 after N stops` when it loops. Shows a focus trap, a skipped field or focus escaping a dialog at a glance. Starts from the current focus. |
 | `assert:<expression>` | Checks that the expression is truthy: prints `assert ok: …`, or `assert failed: … — got <value>` / `— threw <message>` and makes the run exit with 1. The other steps still run. |
 | `resize:<W>x<H>` | Resizes the window. |
@@ -321,6 +324,7 @@ webview-preview [route-or-url] [steps...] [options]
 | `--size <WxH>` | Window size; several, comma-separated: `1200x650,800x600` |
 | `--color-scheme <light\|dark>` | `prefers-color-scheme` for the page |
 | `--reduced-motion` | `prefers-reduced-motion: reduce` for the page |
+| `--offline` / `--latency <ms>` | Start offline / delay every `fetch` / XHR request |
 | `--out <dir>` | Snapshot folder |
 | `--prefix <text>` | File name prefix |
 | `--scale <n>` | Device pixel ratio (Playwright engines) |
@@ -486,7 +490,23 @@ With `mock` set, the same list shows which requests were answered: `GET /api/me 
 desktop side does by itself (a Tauri command that calls a server from Rust). For desktop calls, stub the bridge in
 `init`; for the rest, run the real service locally.
 
-## Desktop bridges: Tauri, Electron, Wails
+### 4. Slow network and offline
+
+How does the screen look while data is on its way, and what happens when the connection drops?
+
+```sh
+npx webview-preview /dashboard --latency 2000 wait:300 snap:loading wait:2500 snap:loaded
+npx webview-preview /dashboard waitfor:.instance-card offline snap:offline online wait:1000 snap:back-online
+```
+
+| | |
+|---|---|
+| `latency:<ms>` step / `--latency <ms>` / `latency` in the config | Every `fetch` / XHR request waits that long first, answers from `mock` too. `latency:0` turns it off. |
+| `offline` / `online` steps, `--offline` / `offline: true` | `navigator.onLine` turns `false`, the page gets the `offline` event, `fetch` rejects with `TypeError: Failed to fetch`, XHR fires `error`. `online` brings it all back and fires `online`. `--offline` starts that way; the page itself still loads. |
+
+While offline, the request list shows `GET /api/me -> offline`. Like `mock`, this covers `fetch` and XHR only:
+pictures, WebSocket and the desktop side keep their connection.
+
 
 Your frontend calls the desktop side: Tauri's `invoke`, an Electron preload API, Wails bindings. Outside the app
 there is no desktop side, so those calls fail — and the screen you want may never render. `webview-preview` puts a

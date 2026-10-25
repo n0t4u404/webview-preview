@@ -1,10 +1,12 @@
+import { NETWORK_STEPS, networkStep } from "#src/page/network.mjs";
+
 export const LOAD_SETTLE_MS = 1500;
 export const JS_SETTLE_MS = 700;
 export const TIMEOUT_MS = 30000;
 export const WAIT_FOR_TIMEOUT_MS = 10000;
 export const WAIT_FOR_POLL_MS = 50;
 
-const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "focusorder", "resize", "key", "type", "hover", "click"]);
+const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "focusorder", "resize", "key", "type", "hover", "click", "offline", "online", "latency"]);
 export const ASSERT_MARKER = "__webviewPreviewAssert:";
 export const FOCUS_MARKER = "__webviewPreviewFocus:";
 const FOCUS_ORDER_DEFAULT = 20;
@@ -210,6 +212,7 @@ export const parseSteps = steps => steps.flatMap(step => {
 		return { kind, value, check: waitForExpression(selector, isGone) }
 	}
 	if (kind === "focusorder") return focusOrderSteps(value, step);
+	if (NETWORK_STEPS.has(kind)) return networkStep(kind, value, step);
 	if (kind === "assert") {
 		if (!value) throw new Error(`assert needs an expression, got "${step}"`);
 		return { kind: "print", value: assertExpression(value), assert: value }

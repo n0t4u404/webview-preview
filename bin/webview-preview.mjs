@@ -17,7 +17,8 @@ const FLAGS = {
 	"--older-than": "olderThan",
 	"--wait-timeout": "waitTimeout",
 	"--locale": "locale",
-	"--color-scheme": "colorScheme"
+	"--color-scheme": "colorScheme",
+	"--latency": "latency"
 }
 const LIST_FLAGS = { "--init": "init", "--init-file": "initFile", "--mock-file": "mockFile" }
 
@@ -43,6 +44,8 @@ Steps:
   type:<text>      type text with the keyboard
   hover:<css selector>  move the mouse to the element's centre
   click:<css selector>  click the element's centre with the mouse
+  offline / online go offline or back: navigator.onLine, online/offline events, fetch and XHR fail
+  latency:<ms>     delay every fetch/XHR request by ms (0 turns it off)
   macro:<name>     run the steps of a macro from the config (macros: { name: [...] })
 
 Options:
@@ -73,6 +76,8 @@ Options:
   --tauri          stub the Tauri bridge (invoke, events, window); answers come from
                    tauri.commands in the config, anything else gets null
   --locale <tag>   navigator.language for the page: en-US, ru-RU … (Playwright: also Intl)
+  --offline        start offline (the page itself still loads)
+  --latency <ms>   delay every fetch/XHR request from the start
   --fail-on-error  exit with 1 when the page logged console.error or threw (they are always printed)
   --config <file>  config file (default: webview-preview.config.{mjs,js,json})
   --no-config      ignore config files
@@ -107,6 +112,10 @@ const parseArgs = argv => {
 		}
 		if (arg === "--headed") {
 			options.headed = true;
+			continue;
+		}
+		if (arg === "--offline") {
+			options.offline = true;
 			continue;
 		}
 		if (arg === "--reduced-motion") {

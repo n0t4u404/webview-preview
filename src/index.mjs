@@ -9,6 +9,7 @@ import { resolveInit, wrapInit } from "#src/page/init.mjs";
 import { compileMock, mockScript, resolveMockFiles } from "#src/page/mock.mjs";
 import { startServer } from "#src/core/server.mjs";
 import { expandMacros, parseSize, parseSteps } from "#src/core/steps.mjs";
+import { checkLatency, networkScript } from "#src/page/network.mjs";
 import { resolveTauri, tauriScript } from "#src/page/tauri.mjs";
 
 export { ENGINES } from "#src/engines/index.mjs";
@@ -64,12 +65,8 @@ export const preview = async (options = {}) => {
 	const locale = merged.locale === undefined ? undefined : checkLocale(String(merged.locale));
 	const tauri = resolveTauri(config.tauri, options.tauri);
 	const globals = { ...config.globals, ...options.globals }
-	const stubs = [
-		{ label: "console", source: consoleScript() },
-		locale && { label: "locale", source: localeScript(locale) },
-		tauri && { label: "tauri", source: tauriScript(tauri) },
-		Object.keys(globals).length && { label: "globals", source: globalsScript(globals) }
-	].filter(Boolean).map(stub => {
+	const network = { isOffline: !!merged.offline, latencyMs: checkLatency(merged.latency) }
+	const checked = stubs => stubs.filter(Boolean).map(stub => {
 		try {
 			new Function(stub.source);
 		} catch (error) {
@@ -77,11 +74,21 @@ export const preview = async (options = {}) => {
 		}
 		return wrapInit(stub);
 	});
-	const init = stubs.concat(hasMock ? [mockScript(mockRules)] : [], resolveInit([
-		{ entries: config.init, baseDir },
-		{ entries: options.init, baseDir: process.cwd() },
-		{ entries: options.initFile && [].concat(options.initFile).map(file => ({ file })), baseDir: process.cwd() }
-	], baseDir));
+	const init = [
+		...checked([
+			{ label: "console", source: consoleScript() },
+			locale && { label: "locale", source: localeScript(locale) },
+			tauri && { label: "tauri", source: tauriScript(tauri) },
+			Object.keys(globals).length && { label: "globals", source: globalsScript(globals) }
+		]),
+		...(hasMock ? [mockScript(mockRules)] : []),
+		...checked([{ label: "network", source: networkScript(network) }]),
+		...resolveInit([
+			{ entries: config.init, baseDir },
+			{ entries: options.init, baseDir: process.cwd() },
+			{ entries: options.initFile && [].concat(options.initFile).map(file => ({ file })), baseDir: process.cwd() }
+		], baseDir)
+	];
 	mkdirSync(out, { recursive: true });
 
 	const output = watchOutput(merged.log ?? consoleLog);

@@ -9,6 +9,9 @@ export type Step =
 	| `assert:${string}`
 	| "focusorder"
 	| `focusorder:${number}`
+	| "offline"
+	| "online"
+	| `latency:${number}`
 	| `snap:${string}`
 	| `print:${string}`
 	| `resize:${number}x${number}`
@@ -33,6 +36,8 @@ export interface PreviewConfig {
 	size?: Size | Size[] | string;
 	colorScheme?: "light" | "dark";
 	reducedMotion?: boolean;
+	offline?: boolean;
+	latency?: number;
 	out?: string;
 	prefix?: string;
 	scale?: number;
