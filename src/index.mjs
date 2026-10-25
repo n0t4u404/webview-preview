@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { compareSnapshots } from "#src/snapshots/compare.mjs";
 import { stitchFilm } from "#src/snapshots/film.mjs";
+import { writeReport } from "#src/snapshots/report.mjs";
 import { loadConfig } from "#src/core/config.mjs";
 import { resolveEngine, runEngine } from "#src/engines/index.mjs";
 import { consoleScript, consoleStep, watchOutput } from "#src/page/console.mjs";
@@ -94,7 +95,19 @@ export const preview = async (options = {}) => {
 	];
 	mkdirSync(out, { recursive: true });
 
-	const output = watchOutput(merged.log ?? consoleLog);
+	const baseLog = merged.log ?? consoleLog;
+	const lines = [];
+	const log = {
+		info: message => {
+			lines.push(["info", message]);
+			baseLog.info(message);
+		},
+		error: message => {
+			lines.push(["error", message]);
+			baseLog.error(message);
+		}
+	}
+	const output = watchOutput(log);
 	const server = merged.server && { cwd: baseDir, ...merged.server }
 	const stopServer = await startServer(server);
 	try {
@@ -134,16 +147,21 @@ export const preview = async (options = {}) => {
 		
 		const { consoleErrors, failedAsserts } = output.report();
 		const shouldCompare = !!(merged.compare || merged.updateBaseline);
-		const compareFailed = shouldCompare && compareSnapshots({
+		const compared = shouldCompare ? compareSnapshots({
 			saved: result.saved,
 			baselineDir: path.resolve(baseDir, merged.baseline ?? "webview-preview-baseline"),
 			updateBaseline: !!merged.updateBaseline,
 			tolerance: Number(merged.compareTolerance ?? 2),
 			maxDiffPixels: Number(merged.maxDiffPixels ?? 0),
-			log: merged.log ?? consoleLog
-		});
+			log
+		}) : { failed: false, results: [] }
 		const consoleFailed = !!merged.failOnError && consoleErrors > 0;
-		return { engine, url, sizes, ...result, consoleErrors, failedAsserts, failed: result.failed || compareFailed || consoleFailed || failedAsserts > 0 }
+		const failed = result.failed || compared.failed || consoleFailed || failedAsserts > 0;
+		const report = merged.report
+			? writeReport({ out, url, engine, sizes, lines, saved: result.saved, compared: compared.results, failed })
+			: undefined;
+		if (report) baseLog.info(`report → ${report}`);
+		return { engine, url, sizes, ...result, consoleErrors, failedAsserts, report, failed }
 	} finally {
 		stopServer();
 	}

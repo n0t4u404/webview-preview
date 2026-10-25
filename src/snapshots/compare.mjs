@@ -37,12 +37,14 @@ export const diffImages = (actual, expected, tolerance) => {
 export const compareSnapshots = ({ saved, baselineDir, updateBaseline, tolerance, maxDiffPixels, log }) => {
 	mkdirSync(baselineDir, { recursive: true });
 	let failed = false;
+	const results = [];
 	for (const file of saved) {
 		const name = path.basename(file);
 		const baseline = path.join(baselineDir, name);
 		if (updateBaseline || !existsSync(baseline)) {
 			copyFileSync(file, baseline);
 			log.info(`compare ${name}: ${updateBaseline ? "baseline updated" : "new baseline"} → ${baseline}`);
+			results.push({ file, baseline, status: updateBaseline ? "baseline updated" : "new baseline" });
 			continue;
 		}
 		
@@ -50,10 +52,12 @@ export const compareSnapshots = ({ saved, baselineDir, updateBaseline, tolerance
 		if (result.sizeMismatch) {
 			failed = true;
 			log.error(`compare ${name}: size changed, baseline ${baseline}`);
+			results.push({ file, baseline, status: "size changed", isFailed: true });
 			continue;
 		}
 		if (result.differentPixels === 0) {
 			log.info(`compare ${name}: same`);
+			results.push({ file, baseline, status: "same" });
 			continue;
 		}
 
@@ -61,12 +65,16 @@ export const compareSnapshots = ({ saved, baselineDir, updateBaseline, tolerance
 		writePng(diffFile, result.diff);
 		const share = ((result.differentPixels / result.total) * 100).toFixed(2);
 		const message = `compare ${name}: ${result.differentPixels} px differ (${share}%) → ${diffFile}`;
-		if (result.differentPixels > maxDiffPixels) {
+		const isFailed = result.differentPixels > maxDiffPixels;
+		
+		if (isFailed) {
 			failed = true;
 			log.error(message);
 		} else {
 			log.info(`${message} (within maxDiffPixels ${maxDiffPixels})`);
 		}
+
+		results.push({ file, baseline, diffFile, status: `${result.differentPixels} px differ (${share}%)`, isFailed });
 	}
-	return failed;
+	return { failed, results }
 }

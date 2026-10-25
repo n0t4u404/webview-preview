@@ -64,6 +64,8 @@ Options:
   --headed         WebKitGTK: show a real window instead of rendering off-screen
   --wait-timeout <ms>  how long waitfor waits (default: 10000)
   --keep-storage   WebKitGTK: keep localStorage, cookies and cache between runs (default: start clean)
+  --report         write <out>/report.html: the output and every snapshot, with baseline and
+                   difference next to it after --compare
   --compare        compare every snapshot with the baseline of the same name (a missing one is created)
   --update-baseline  replace the baselines with this run's snapshots
   --baseline <dir> baseline folder (default: webview-preview-baseline)
@@ -116,6 +118,10 @@ const parseArgs = argv => {
 		}
 		if (arg === "--headed") {
 			options.headed = true;
+			continue;
+		}
+		if (arg === "--report") {
+			options.report = true;
 			continue;
 		}
 		if (arg === "--watch") {

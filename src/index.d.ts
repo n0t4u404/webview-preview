@@ -40,6 +40,7 @@ export interface PreviewConfig {
 	offline?: boolean;
 	latency?: number;
 	watch?: string | string[];
+	report?: boolean;
 	out?: string;
 	prefix?: string;
 	scale?: number;
@@ -99,6 +100,7 @@ export interface PreviewResult {
 	saved: string[];
 	consoleErrors: number;
 	failedAsserts: number;
+	report?: string;
 	failed: boolean;
 }
 

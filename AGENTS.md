@@ -195,6 +195,9 @@ npx webview-preview /screen <steps> snap:screen "snap:panel@[data-test=panel]" -
 change is a regression to explain. Use a separate `--baseline` folder for such throw-away checks so you do not
 overwrite the project's committed baselines. Run `webview-preview clean` when you are done with the snapshots.
 
+When the user should see the result too, add `--report` and give them the path to `report.html`: baseline, this run
+and the difference side by side, with the run's output on top.
+
 ## Sizes, theme and motion
 
 A layout change can break only the narrow window or only the dark theme. Check them in the same run instead of

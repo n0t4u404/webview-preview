@@ -159,6 +159,7 @@ npx webview-preview /settings snap:settings
 | `size` | Window size in CSS pixels, `WxH`. Several sizes — `"1200x650,800x600"` or a list — run the steps once per size; snapshots get the size in the name: `webkitgtk-800x600-page.png`. | `1200x650` |
 | `colorScheme` | `prefers-color-scheme` for the page: `light` or `dark`. | system |
 | `reducedMotion` | `prefers-reduced-motion: reduce` for the page. | `false` |
+| `report` | Write `<out>/report.html` after every run. See [Comparing with a baseline](#comparing-with-a-baseline). | `false` |
 | `watch` | What `--watch` follows: a folder, a file or a list, relative to the config's folder. The config file itself is always followed. | `src` if it exists, else the config's folder |
 | `offline` / `latency` | Start offline / delay every `fetch` / XHR request by ms. See [Slow network and offline](#4-slow-network-and-offline). | `false` / `0` |
 | `out` | Snapshot folder, relative to the config's folder. | `.webview-preview` |
@@ -335,6 +336,7 @@ webview-preview [route-or-url] [steps...] [options]
 | `--snap-margin <px>` | Room around `snap:name@selector` |
 | `--wait-timeout <ms>` | How long `waitfor:` waits |
 | `--keep-storage` | WebKitGTK: keep storage between runs |
+| `--report` | Write `<out>/report.html` with the output and all snapshots (baseline and difference after `--compare`) |
 | `--compare` / `--update-baseline` | Compare snapshots with baselines / replace the baselines |
 | `--baseline <dir>` / `--max-diff-pixels <n>` / `--compare-tolerance <n>` | Baseline folder, allowed difference |
 | `--base-url <url>` | Base for routes |
@@ -610,6 +612,9 @@ npx webview-preview /settings snap:settings "snap:menu@[role=menu]" --compare
   The `.diff.png` shows the snapshot in grey with the changed pixels in red. More than `maxDiffPixels` changed
   (default `0`) → exit code `1`.
 - **The change is intended**: `--update-baseline` replaces the baselines with this run's snapshots.
+- **See it all on one page**: add `--report`. `<out>/report.html` shows the run's output and every snapshot —
+  after `--compare` with the baseline, this run and the difference side by side, changed ones marked red. Open it in
+  any browser; it works without a server and follows the system's light or dark theme.
 
 Snapshots differ between engines and screen scales, so the engine is part of the file name (`webkitgtk-…`,
 `msedge-…`) and each engine has its own baselines. `compareTolerance` (default `2` of 255 per channel) ignores
