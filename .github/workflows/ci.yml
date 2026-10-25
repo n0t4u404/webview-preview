@@ -1,4 +1,4 @@
-name: test
+name: CI
 
 on:
   push:
@@ -8,21 +8,26 @@ on:
 
 jobs:
   test:
-    name: ${{ matrix.os }} · ${{ matrix.engine }}
+    name: ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - label: Linux · WebKitGTK
+            os: ubuntu-latest
             engine: webkitgtk
-          - os: ubuntu-latest
+          - label: Linux · Chromium
+            os: ubuntu-latest
             engine: chromium
-          - os: windows-latest
+          - label: Windows · Edge
+            os: windows-latest
             engine: msedge
-          - os: windows-latest
+          - label: Windows · Chrome
+            os: windows-latest
             engine: chrome
-          - os: macos-latest
+          - label: macOS · WebKit
+            os: macos-latest
             engine: webkit
     env:
       WEBVIEW_PREVIEW_ENGINE: ${{ matrix.engine }}

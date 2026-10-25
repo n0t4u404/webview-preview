@@ -1,6 +1,6 @@
 # webview-preview
 
-[![test](https://github.com/n0t4u404/webview-preview/actions/workflows/test.yml/badge.svg)](https://github.com/n0t4u404/webview-preview/actions/workflows/test.yml)
+[![CI](https://github.com/n0t4u404/webview-preview/actions/workflows/ci.yml/badge.svg)](https://github.com/n0t4u404/webview-preview/actions/workflows/ci.yml)
 
 See your UI the way your desktop app really renders it. `webview-preview` opens a page in the **same engine your app
 runs on** — WebKitGTK on Linux, Edge (the WebView2 engine) on Windows, WebKit on macOS — runs a list of steps
