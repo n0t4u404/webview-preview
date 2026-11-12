@@ -1,4 +1,4 @@
-export function annotatePanel({ key, name, markup, styles, icons: ICONS }, { keys, selectors, react, vue, dom }) {
+export function annotatePanel({ key, name, markup, styles, icons: ICONS, keepOpen = false }, { keys, selectors, react, vue, dom }) {
 	const { DEFAULT_KEYS, KEY_ACTIONS, bindings, showKey, comboOf, actionFor } = keys;
 	const { textOf, describe, shortName, buildSelector, lookOf, isPrivate, privateElements } = selectors;
 	const componentOf = element => react.componentOf(element) ?? vue.componentOf(element);
@@ -300,6 +300,7 @@ export function annotatePanel({ key, name, markup, styles, icons: ICONS }, { key
 	}
 
 	const pick = (element, isAdding) => {
+		if (state.status !== "open") return;
 		hovered = null;
 		showOutline(null);
 		const id = elementId(element);
@@ -336,6 +337,7 @@ export function annotatePanel({ key, name, markup, styles, icons: ICONS }, { key
 		const action = button.dataset.action;
 		if (action === "toggle") return isCollapsed ? "Show tools" : "Hide tools";
 		if (action === "pick") return isPicking ? "Pick elements — on" : "Pick elements — off";
+		if (button.classList.contains("done") && keepOpen) return "Finish — sends what is left and closes the window";
 		if (action === "freeze") return isFrozen ? "Unfreeze" : freezeTimer ? "Freezing… press again to stop" : `Freeze in ${FREEZE_SECONDS} s — hover what has to stay open`;
 		return button.dataset.tip;
 	}
@@ -344,7 +346,7 @@ export function annotatePanel({ key, name, markup, styles, icons: ICONS }, { key
 		const action = button.dataset.action;
 		tip.replaceChildren();
 		tip.append(tipText(button));
-		if (action && bindings[action]) {
+		if (action && bindings[action] && !(keepOpen && button.classList.contains("done"))) {
 			const shortcut = document.createElement("kbd");
 			shortcut.textContent = showKey(bindings[action]);
 			tip.append(shortcut);
@@ -380,7 +382,7 @@ export function annotatePanel({ key, name, markup, styles, icons: ICONS }, { key
 			["Shift+click", "add to the open note"],
 			[`Alt+wheel, ${showKey(bindings.parent)} ${showKey(bindings.child)}`, "parent / child"],
 			[showKey(bindings.pick), "pick on / off"],
-			[showKey(bindings.done), "done"]
+			[showKey(bindings.done), keepOpen ? "send" : "done"]
 		];
 		parts.forEach(([keys, text], index) => {
 			const shortcut = document.createElement("kbd");
@@ -559,7 +561,7 @@ export function annotatePanel({ key, name, markup, styles, icons: ICONS }, { key
 	}
 
 	const run = action => {
-		if (action === "done") finish("done");
+		if (action === "done") keepOpen ? send() : finish("done");
 		else if (action === "freeze") toggleFreeze();
 		else if (action === "pick") setPicking(!isPicking);
 		else if (action === "toggle") setCollapsed(!isCollapsed);
@@ -576,6 +578,7 @@ export function annotatePanel({ key, name, markup, styles, icons: ICONS }, { key
 	}
 
 	const onKey = event => {
+		if (state.status !== "open") return;
 		const fromUs = isOurs(event);
 		const combo = comboOf(event);
 		if (listeningFor) {
@@ -645,6 +648,45 @@ export function annotatePanel({ key, name, markup, styles, icons: ICONS }, { key
 		frame = requestAnimationFrame(tick);
 	}
 
+	const send = () => {
+		if (state.status !== "open" || (notes.length === 0 && !general.value.trim())) return;
+		setFrozen(false);
+		try {
+			state.result = collect();
+		} catch (error) {
+			state.result = { notes: [], generalNote: general.value.trim() || null, url: location.href, viewport: { width: innerWidth, height: innerHeight }, elements: {}, error: String(error) }
+		}
+		state.status = "sent";
+		activeNote = null;
+		syncMasks();
+		drawMasks();
+		drawPicks();
+		for (const part of [dock, tip, outline]) part.style.display = "none";
+		state.cleanup = () => {
+			picks.style.display = "none";
+		}
+		state.resume = () => {
+			notes.length = 0;
+			records.clear();
+			for (const entry of markers.values()) {
+				entry.box.remove();
+				entry.marker.remove();
+			}
+			markers.clear();
+			pending.clear();
+			nextElement = 1;
+			nextNote = 1;
+			general.value = "";
+			picks.style.display = "";
+			for (const part of [dock, tip, outline]) part.style.display = "";
+			state.result = null;
+			state.status = "open";
+			changed();
+			showSheet(null);
+			update();
+		}
+	}
+
 	const finish = status => {
 		if (state.status !== "open") return;
 		setFrozen(false);
@@ -681,7 +723,9 @@ export function annotatePanel({ key, name, markup, styles, icons: ICONS }, { key
 	freezeButton.addEventListener("click", () => run("freeze"));
 	toggleButton.addEventListener("click", () => run("toggle"));
 	keysButton.addEventListener("click", () => showSheet(openSheet === "keys" ? null : "keys"));
-	$(".done").addEventListener("click", () => run("done"));
+	$(".done").addEventListener("click", () => finish("done"));
+	$(".send").addEventListener("click", () => send());
+	$(".send").hidden = !keepOpen;
 	$(".cancel").addEventListener("click", () => finish("cancelled"));
 	$(".reset-keys").addEventListener("click", () => {
 		Object.assign(bindings, DEFAULT_KEYS);

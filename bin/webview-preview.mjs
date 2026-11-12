@@ -80,6 +80,7 @@ Options:
   --init <code>    run code before the page's own scripts, on every load (repeatable)
   --init-file <f>  same, from a file (repeatable)
   --private <css>  annotate: hide these elements' text and pixels in the report too (repeatable)
+  --keep-open      annotate: a Send button reports the notes and keeps the window open for more
   --mock-file <f>  answer fetch/XHR requests from a .json/.mjs file of mocks (repeatable);
                    every request is listed in window.__webviewPreviewRequests
   --log-requests   only list fetch/XHR requests in window.__webviewPreviewRequests
@@ -124,6 +125,10 @@ const parseArgs = argv => {
 		}
 		if (arg === "--headed") {
 			options.headed = true;
+			continue;
+		}
+		if (arg === "--keep-open") {
+			options.keepOpen = true;
 			continue;
 		}
 		if (arg === "--report") {

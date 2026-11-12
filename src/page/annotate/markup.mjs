@@ -16,6 +16,7 @@ export const MARKUP = `
 				<button type="button" class="tool freeze" data-action="freeze" data-tip="Freeze">${ICONS.freeze}<span class="badge freeze-badge"></span></button>
 				<button type="button" class="tool keys" data-tip="Key bindings">${ICONS.keys}</button>
 				<div class="divider"></div>
+				<button type="button" class="tool accent send" data-action="done" data-tip="Send the notes — the window stays open" hidden>${ICONS.send}</button>
 				<button type="button" class="tool accent done" data-action="done" data-tip="Done">${ICONS.done}</button>
 				<button type="button" class="tool cancel" data-tip="Cancel">${ICONS.cancel}</button>
 			</div></div></div>

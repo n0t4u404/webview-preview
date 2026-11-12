@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>session</title>
+<style>
+	body { margin: 0; padding: 24px 24px 24px 120px; font: 16px sans-serif }
+	[hidden] { display: none }
+</style>
+</head>
+<body>
+<form id="login" onsubmit="event.preventDefault(); window.signedIn = true; render()">
+	<button id="signin" type="submit">Sign in</button>
+</form>
+<main id="app" hidden>
+	<button id="first" type="button">First</button>
+	<button id="second" type="button">Second</button>
+</main>
+<script>
+	const render = () => {
+		document.querySelector("#login").hidden = !!window.signedIn;
+		document.querySelector("#app").hidden = !window.signedIn;
+	}
+	render();
+</script>
+</body>
+</html>

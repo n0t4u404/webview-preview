@@ -7,7 +7,7 @@ export function pageKeys(saved) {
 		["toggle", "Show / hide tools"],
 		["parent", "Outline the parent"],
 		["child", "Back to the child"],
-		["done", "Done"]
+		["done", "Done (Send with --keep-open)"]
 	];
 	const bindings = { ...DEFAULT_KEYS, ...(saved ?? {}) }
 

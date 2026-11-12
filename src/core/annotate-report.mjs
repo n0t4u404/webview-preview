@@ -40,6 +40,7 @@ export const writeAnnotationReport = ({ annotation, out, prefix, engine, url, ba
 		baseUrl,
 		name: annotation.name,
 		status: annotation.status,
+		round: annotation.round ?? 1,
 		page: {
 			url: result?.url ?? url,
 			route: routeOf(result?.url ?? url, baseUrl),
@@ -58,7 +59,7 @@ export const writeAnnotationReport = ({ annotation, out, prefix, engine, url, ba
 		delete result.url;
 		delete result.viewport;
 	}
-	const base = path.join(out, `${prefix}annotate-${annotation.name}`);
+	const base = path.join(out, `${prefix}annotate-${annotation.name}${annotation.round > 1 ? `-${annotation.round}` : ""}`);
 	writeFileSync(`${base}.md`, markdown(report));
 	delete report.baseUrl;
 	writeFileSync(`${base}.json`, JSON.stringify(report, null, "\t"));

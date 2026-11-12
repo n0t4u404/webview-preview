@@ -76,6 +76,12 @@ npx webview-preview /screen <steps to reach it> annotate:review
 
 - It opens a **real window** and **waits for the person** — there is no run limit. Start it in the background (or
   tell the user to run it) and wait for the process to end; do not poll the window.
+- Put the steps that reach the screen (sign-in macro, navigation) **before** `annotate`: after a full reload they run
+  again, so the person does not end up on a sign-in page while you fix things.
+- With `--keep-open` the person sends notes in **rounds** and the process keeps running: each round prints
+  `annotate <name>: sent (round N) · …` and its file paths at once. Watch the process output for these lines (a
+  monitor / tail on its output), fix, and let the person look at the result in the same window (hot reload); the
+  last round says `done` and the process ends.
 - Read the stdout summary first: one line per note with the component, `file:line` and the note's text. The full
   data is in `<prefix>annotate-review.json` next to the snapshots; pictures are `annotate-review.png` (with markers)
   and `annotate-review-e1.png` … (each element). Open a picture only after the JSON.

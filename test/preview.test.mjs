@@ -417,3 +417,42 @@ test("annotate treats the same node on another route as a separate element", asy
 	const { result: annotation } = JSON.parse(result.lines.find(line => line.startsWith('{"status"')));
 	assert.deepEqual(annotation.notes.map(note => [note.elements, note.url.split("#")[1]]), [[["e1"], "/one"], [["e2"], "/two"]]);
 });
+
+test("annotate with keepOpen reports every Send at once and keeps going until Done", async () => {
+	const folder = mkdtempSync(path.join(os.tmpdir(), "webview-preview-rounds-"));
+	const lines = [];
+	const pick = selector => `const element = document.querySelector('${selector}'); const rect = element.getBoundingClientRect(); element.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, detail: 1, clientX: rect.x + 4, clientY: rect.y + 4 }));`;
+	const ctrlEnter = "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', ctrlKey: true, bubbles: true }));";
+	const result = await run([
+		`jsnow:setTimeout(() => { ${pick("#open")} setTimeout(() => { ${ctrlEnter} setTimeout(() => { ${pick("#load")} setTimeout(() => window.__webviewPreviewAnnotate.finish('done'), 400) }, 1500) }, 400) }, 2000)`,
+		"annotate:rounds"
+	], { headed: false, out: folder, keepOpen: true, log: { info: line => lines.push(line), error: line => lines.push(`ERROR ${line}`) } });
+	assert.equal(result.failed, false, lines.join("\n"));
+	assert.deepEqual(result.annotations.map(annotation => [annotation.status, annotation.round, Object.values(annotation.elements).map(element => element.selector)]), [["sent", 1, ["#open"]], ["done", 2, ["#load"]]]);
+	for (const file of ["annotate-rounds.json", "annotate-rounds-2.json", "annotate-rounds-2-e1.png"]) assert.ok(existsSync(path.join(folder, `${result.engine}-${file}`)), file);
+	assert.ok(lines.some(line => line.startsWith("annotate rounds: sent (round 1)")), lines.join("\n"));
+});
+
+test("annotate replays the steps before it when the page reloads and comes back to the same address", async () => {
+	const pick = selector => `const element = document.querySelector('${selector}'); const rect = element.getBoundingClientRect(); element.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, detail: 1, clientX: rect.x + 4, clientY: rect.y + 4 }));`;
+	const script = `addEventListener("load", () => {
+		const loads = Number(sessionStorage.getItem("loads") || 0) + 1;
+		sessionStorage.setItem("loads", String(loads));
+		if (loads === 1) setTimeout(() => { ${pick("#first")} location.hash = "#/three"; setTimeout(() => location.reload(), 900) }, 3000);
+		if (loads === 2) setTimeout(() => {
+			window.__checked = location.hash + " " + document.querySelector("#app").hidden;
+			${pick("#second")}
+			setTimeout(() => window.__webviewPreviewAnnotate.finish("done"), 400);
+		}, 4500);
+	});`;
+	const result = await run([
+		"click:#signin",
+		"js:location.hash = '#/two'",
+		"annotate:session",
+		"print:'state ' + window.__checked"
+	], { headed: false, target: fixture.replace("index.html", "session.html"), init: script, out: mkdtempSync(path.join(os.tmpdir(), "webview-preview-replay-")) });
+	assert.equal(result.failed, false, result.lines.join("\n"));
+	assert.ok(result.lines.includes("state #/three false"), result.lines.join("\n"));
+	const [report] = result.annotations;
+	assert.deepEqual(report.notes.map(note => report.elements[note.elements[0]].selector), ["#first", "#second"]);
+});

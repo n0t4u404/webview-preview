@@ -66,7 +66,7 @@ export interface PreviewConfig {
 	globals?: Record<string, unknown>;
 	locale?: string;
 	macros?: Record<string, Step[] | string[]>;
-	annotate?: { private?: string[] }
+	annotate?: { private?: string[]; keepOpen?: boolean }
 	failOnError?: boolean;
 }
 
@@ -93,6 +93,7 @@ export type InitEntry = string | { file: string }
 
 export interface PreviewOptions extends PreviewConfig {
 	private?: string | string[];
+	keepOpen?: boolean;
 	target?: string;
 	steps?: Step[] | string[];
 	initFile?: string | string[];
@@ -136,7 +137,8 @@ export interface AnnotationElement {
 export interface Annotation {
 	version: 1;
 	name: string;
-	status: "done" | "cancelled";
+	status: "done" | "sent" | "cancelled";
+	round: number;
 	page: { url: string; route: string; engine: Exclude<Engine, "auto">; size: { width: number; height: number }; scale: number; takenAt: string }
 	image: string | null;
 	notes: { id: number; text: string; elements: string[]; url: string; isFrozen: boolean }[];

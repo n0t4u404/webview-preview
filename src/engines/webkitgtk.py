@@ -119,6 +119,9 @@ def main():
         return False
 
     def step_failed(message):
+        if state.get("replaying"):
+            emit("error", f"replay: {message}")
+            return
         state["failed"] = True
         emit("error", message)
 
@@ -332,9 +335,12 @@ def main():
         GLib.idle_add(run_step)
 
     def annotate(step):
-        base = f"annotate-{step['value']}"
-        images = {}
-        memory = {"draft": None}
+        memory = state.setdefault("annotate_memory", {}).setdefault(
+            step["value"], {"draft": None, "round": 1, "images": {}, "url": None}
+        )
+
+        def base():
+            return f"annotate-{step['value']}" + (f"-{memory['round']}" if memory["round"] > 1 else "")
 
         def later(callback, ms):
             GLib.timeout_add(ms, lambda: (callback(), False)[1])
@@ -347,45 +353,65 @@ def main():
             code = (f"window.{step['restoreKey']} = {json.dumps(draft)};" if draft else "") + step["start"]
             evaluate(code, lambda _: again(), lambda _: again())
 
+        def replay():
+            resume = {**step, "isResume": True}
+            steps[state["index"]:state["index"]] = [*step["replay"], resume]
+            state["replaying"] = True
+            next_step()
+
+        def go_back_then_restart():
+            url = memory["url"]
+            if not url:
+                return restart()
+            code = f"if (location.href !== {json.dumps(url)}) location.href = {json.dumps(url)};"
+            evaluate(code, lambda _: later(restart, args.js_settle_ms), lambda _: restart())
+
         def grab(captures):
             def shoot():
                 for capture in captures:
-                    path = crop(f"{base}-{capture['id']}", capture["rect"], False)
+                    path = crop(f"{base()}-{capture['id']}", capture["rect"], False)
                     if path:
-                        images[capture["id"]] = os.path.basename(path)
+                        memory["images"][capture["id"]] = os.path.basename(path)
                 evaluate(step["show"], lambda _: again(), lambda _: again())
 
             evaluate(step["hide"], lambda _: later(shoot, ANNOTATE_SETTLE_MS), lambda _: shoot())
 
         def finish_annotate(answer):
-            state["annotating"] = None
+            is_sent = answer.get("status") == "sent"
+            if not is_sent:
+                state["annotating"] = None
             result = answer.get("result")
             width = view.get_allocated_width()
-            answer.update(name=step["value"], scale=full_pixbuf().get_width() / width if width else 1)
-            if answer.get("status") != "done" or not result:
+            answer.update(name=step["value"], round=memory["round"], scale=full_pixbuf().get_width() / width if width else 1)
+            if answer.get("status") not in ("done", "sent") or not result:
                 emit("annotate", answer)
                 return next_step()
-            save(base, full_pixbuf(), False)
-            answer["image"] = f"{args.prefix}{base}.png"
+            save(base(), full_pixbuf(), False)
+            answer["image"] = f"{args.prefix}{base()}.png"
 
             def crops():
                 for element_id, element in result["elements"].items():
-                    path = crop(f"{base}-{element_id}", element["rect"], False) if element.get("isLive") else None
-                    element["image"] = os.path.basename(path) if path else images.get(element_id)
+                    path = crop(f"{base()}-{element_id}", element["rect"], False) if element.get("isLive") else None
+                    element["image"] = os.path.basename(path) if path else memory["images"].get(element_id)
                 emit("annotate", answer)
-                evaluate(step["dispose"], lambda _: next_step(), lambda _: next_step())
+                if not is_sent:
+                    return evaluate(step["dispose"], lambda _: next_step(), lambda _: next_step())
+                memory.update(draft=None, images={}, round=memory["round"] + 1)
+                evaluate(step["resume"], lambda _: again(), lambda _: again())
 
             evaluate(step["cleanup"], lambda _: later(crops, ANNOTATE_SETTLE_MS * 2), lambda _: crops())
 
         def poll():
             def on_value(text):
                 if text == "missing":
-                    return restart()
+                    return replay() if step.get("replay") else restart()
                 if not text or text == "null":
                     return again()
                 answer = json.loads(text)
                 if answer.get("status") != "open":
                     return finish_annotate(answer)
+                if answer.get("url"):
+                    memory["url"] = answer["url"]
                 if answer.get("draft"):
                     memory["draft"] = answer["draft"]
                 if answer.get("captures"):
@@ -395,6 +421,9 @@ def main():
             evaluate(step["check"], on_value, lambda _: again())
 
         state["annotating"] = step["value"]
+        if step.get("isResume"):
+            state["replaying"] = False
+            return go_back_then_restart()
         evaluate(step["start"], lambda _: poll(), lambda error: (step_failed(f"annotate failed: {error}"), next_step()))
 
     def run_step():
@@ -500,6 +529,13 @@ def main():
 
     sys.stdout.flush()
     sys.stderr.flush()
+    try:
+        view.terminate_web_process()
+        window.destroy()
+        while Gtk.events_pending():
+            Gtk.main_iteration_do(False)
+    except Exception:
+        pass
     os._exit(1 if state["failed"] else 0)
 
 

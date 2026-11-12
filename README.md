@@ -303,7 +303,8 @@ the other engines without `headless`.
 | Notes | `N` | The list of notes. It also opens when you pick an element, with the cursor in the note's text. |
 | Freeze | `F` | Counts down 3 s (on the button) — hover what has to stay open meanwhile. Then animations stop and the page no longer hears the mouse leave or focus go (`mouseleave`, `pointerout`, `blur`, `focusout`, mouse moves), so tooltips and menus stay open to be picked. `F` again unfreezes. A menu that closes on a timer or by its own logic can still close. |
 | Key bindings | — | Click an action, press the new key. Saved for the next runs in your user settings (`~/.config/webview-preview/annotate.json` on Linux, `%APPDATA%\webview-preview\` on Windows, `~/Library/Application Support/webview-preview/` on macOS). |
-| Done / Cancel | `Ctrl+Enter` | Done writes the report; Cancel or closing the window ends with nothing. |
+| Done / Cancel | `Ctrl+Enter` | Done writes the report and ends the step (the window closes when the run ends); Cancel or closing the window ends with nothing. |
+| Send | `Ctrl+Enter` | With `--keep-open` only: writes the report for the notes so far right away, clears the panel and **keeps the window open** — keep checking the page while it reloads with your fixes. Done (the tick) then sends what is left and ends. |
 
 - **Click** — a new note; **Shift+click** — adds the element to the open note ("align these two"); clicking an
   element that already has a note opens that note.
@@ -311,11 +312,20 @@ the other engines without `headless`.
 - **Escape** closes the notes card; the notes stay. The **general note** at the bottom is about the whole screen.
 - **Several pages:** go to another screen (turn Pick off, navigate, turn it on) — the notes stay, also when the page
   reloads. Elements are cut out the moment you pick them; coming back to a page shows their markers again.
+- **Full reloads** (a dev server reloading the page after a change, which loses a session kept in memory): the
+  steps before `annotate` run again — sign in, open the screen — then the page goes back to the address you were on
+  and the panel comes back with your notes. Snapshots, `print:` and asserts are not repeated; a replayed step that
+  fails (you were still signed in, say) only prints `replay: …` and does not fail the run.
 - Keys follow the physical key, so they work in any keyboard layout.
 
 ![Two notes: the second one is about two buttons at once and is open in the notes card](assets/readme/annotate-notes.png)
 
 ![Freeze: the tooltip that appears on hover stays open, so it can be picked](assets/readme/annotate-freeze.png)
+
+**One round or many.** By default the window closes after Done. With `--keep-open` (or `annotate: { keepOpen: true }`
+in the config) every Send is a round of its own: the summary is printed and the files are written at once, named
+`annotate-<name>`, then `annotate-<name>-2`, `-3` …; the status says `sent`, the last one `done`. Good for working
+with someone fixing things while you look — the dev server's hot reload shows the fixes in the same window.
 
 **What you get.** A summary on stdout, one line per note:
 

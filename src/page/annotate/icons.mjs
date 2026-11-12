@@ -7,6 +7,7 @@ export const ICONS = {
 	freeze: icon("<path d='m10 20-1.25-2.5L6 18'/><path d='M10 4 8.75 6.5 6 6'/><path d='m14 20 1.25-2.5L18 18'/><path d='m14 4 1.25 2.5L18 6'/><path d='m17 21-3-6h-4'/><path d='m17 3-3 6 1.5 3'/><path d='M2 12h6.5L10 9'/><path d='m20 10-1.5 2 1.5 2'/><path d='M22 12h-6.5L14 15'/><path d='m4 10 1.5 2L4 14'/><path d='m7 21 3-6-1.5-3'/><path d='m7 3 3 6h4'/>"),
 	notes: icon("<path d='M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z'/><path d='M7 11h10'/><path d='M7 15h6'/><path d='M7 7h8'/>"),
 	keys: icon("<path d='M10 8h.01'/><path d='M12 12h.01'/><path d='M14 8h.01'/><path d='M16 12h.01'/><path d='M18 8h.01'/><path d='M6 8h.01'/><path d='M7 16h10'/><path d='M8 12h.01'/><rect width='20' height='16' x='2' y='4' rx='2'/>"),
+	send: icon("<path d='M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z'/><path d='m21.854 2.147-10.94 10.939'/>"),
 	done: icon("<path d='M20 6 9 17l-5-5'/>"),
 	cancel: icon("<path d='M18 6 6 18'/><path d='m6 6 12 12'/>")
 }

@@ -19,7 +19,7 @@ const loadPlaywright = async () => {
 export const runPlaywright = async ({
 	engine, url, steps, init = [], size, locale,
 	colorScheme, isMotionReduced = false, out, prefix, scale,
-	snapMargin = 8, isHeaded = false, waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, timeoutMs = TIMEOUT_MS, log
+	snapMargin = 8, isHeaded = false, waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, timeoutMs = TIMEOUT_MS, onAnnotation, log
 }) => {
 	const deadline = timeoutMs > 0 ? Date.now() + timeoutMs : Infinity;
 	const playwright = await loadPlaywright();
@@ -81,51 +81,75 @@ export const runPlaywright = async ({
 			}
 		}
 
+		const report = annotation => {
+			annotations.push(annotation);
+			onAnnotation?.(annotation);
+		}
+
 		const annotate = async step => {
-			const base = `${prefix}annotate-${step.value}`;
-			const images = {}
+			let round = 1;
+			const base = () => `${prefix}annotate-${step.value}${round > 1 ? `-${round}` : ""}`;
+			let images = {}
 			let draft = null;
+			let lastUrl = null;
 			await page.evaluate(step.start);
 			for (;;) {
 				if (page.isClosed()) {
-					annotations.push({ name: step.value, status: "cancelled", result: null });
+					report({ name: step.value, status: "cancelled", result: null, round });
 					return;
 				}
 				if (Date.now() > deadline) {
-					annotations.push({ name: step.value, status: "cancelled", result: null });
+					report({ name: step.value, status: "cancelled", result: null, round });
 					throw new Error(`timed out after ${timeoutMs} ms`);
 				}
 				const text = await page.evaluate(step.check).catch(() => null);
 				const answer = text && text !== "missing" ? JSON.parse(text) : null;
 				if (text === "missing") {
+					for (const earlier of step.replay ?? []) {
+						try {
+							await runStep(earlier);
+						} catch (error) {
+							log.error(`replay: ${error.message.split("\n")[0]}`);
+						}
+					}
+					if (lastUrl && page.url() !== lastUrl) {
+						await page.evaluate(`location.href = ${JSON.stringify(lastUrl)}`).catch(() => undefined);
+						await page.waitForTimeout(JS_SETTLE_MS);
+					}
 					await page.evaluate(`${draft ? `window.${step.restoreKey} = ${JSON.stringify(draft)};` : ""}${step.start}`).catch(() => undefined);
 				} else if (answer?.status === "open") {
+					if (answer.url) lastUrl = answer.url;
 					if (answer.draft) draft = answer.draft;
 					if (answer.captures?.length) {
 						await page.evaluate(step.hide).catch(() => undefined);
 						await page.waitForTimeout(80);
 						for (const capture of answer.captures) {
-							const image = await cutOut(capture.rect, path.join(out, `${base}-${capture.id}.png`));
+							const image = await cutOut(capture.rect, path.join(out, `${base()}-${capture.id}.png`));
 							if (image) images[capture.id] = image;
 						}
 						await page.evaluate(step.show).catch(() => undefined);
 					}
 				} else if (answer) {
-					const annotation = { ...answer, name: step.value, scale: scale ?? 1 }
-					if (annotation.status === "done" && annotation.result) {
-						await page.screenshot({ path: path.join(out, `${base}.png`) });
-						annotation.image = `${base}.png`;
+					const annotation = { ...answer, name: step.value, round, scale: scale ?? 1 }
+					const isSent = annotation.status === "sent";
+					if ((annotation.status === "done" || isSent) && annotation.result) {
+						await page.screenshot({ path: path.join(out, `${base()}.png`) });
+						annotation.image = `${base()}.png`;
 						await page.evaluate(step.cleanup).catch(() => undefined);
 						await page.waitForTimeout(160);
 						for (const [id, element] of Object.entries(annotation.result.elements)) {
 							element.image = element.isLive
-								? await cutOut(element.rect, path.join(out, `${base}-${id}.png`)) ?? images[id] ?? null
+								? await cutOut(element.rect, path.join(out, `${base()}-${id}.png`)) ?? images[id] ?? null
 								: images[id] ?? null;
 						}
-						await page.evaluate(step.dispose).catch(() => undefined);
+						if (!isSent) await page.evaluate(step.dispose).catch(() => undefined);
 					}
-					annotations.push(annotation);
-					return;
+					report(annotation);
+					if (!isSent) return;
+					round += 1;
+					images = {}
+					draft = null;
+					await page.evaluate(step.resume).catch(() => undefined);
 				}
 				await new Promise(resolve => setTimeout(resolve, step.pollMs));
 			}

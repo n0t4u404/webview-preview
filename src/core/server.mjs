@@ -36,6 +36,16 @@ const stopProcessTree = child => {
 	}
 }
 
+const STOP_TIMEOUT_MS = 3000;
+
+const waitForClose = async (port, host) => {
+	const deadline = Date.now() + STOP_TIMEOUT_MS;
+	while (Date.now() < deadline) {
+		if (!await isPortOpen(port, host)) return;
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+}
+
 export const startServer = async server => {
 	if (!server) return () => {}
 	const { command, port, host = "localhost", cwd = process.cwd(), readyTimeoutMs = DEFAULT_READY_TIMEOUT_MS } = server;
@@ -51,12 +61,13 @@ export const startServer = async server => {
 	const stop = () => {
 		running.delete(stop);
 		stopProcessTree(child);
+		return waitForClose(port, host);
 	}
 	running.add(stop);
 	try {
 		await waitForPort(port, host, readyTimeoutMs);
 	} catch (error) {
-		stop();
+		await stop();
 		throw error;
 	}
 	return stop;

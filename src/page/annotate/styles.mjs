@@ -29,12 +29,14 @@ export const STYLES = `
 	button { font: inherit; color: inherit }
 	.tool { position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: #939393; background: none; border: none; border-radius: 8px; cursor: pointer; transition: color 0.2s ease-out, background-color 0.2s ease-out }
 	.tool:hover { color: #ffffff }
+	.tool[hidden] { display: none }
 	.tool[aria-pressed="true"] { color: #ffffff; background: rgba(255, 255, 255, 0.08) }
 	.tool.accent { color: #0a77ff }
 	.tool.accent:hover { color: #3d95ff }
 	.tool[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed }
 	.tool[aria-disabled="true"]:hover { color: #939393 }
-	.tool:focus-visible, .button:focus-visible, .kbd:focus-visible, textarea:focus-visible { outline: none; box-shadow: 0 0 0 2px #0a0a0a, 0 0 0 4px #0a77ff }
+	.tool:focus-visible { outline: none; box-shadow: inset 0 0 0 2px #0a77ff }
+	.button:focus-visible, .kbd:focus-visible, textarea:focus-visible { outline: none; box-shadow: 0 0 0 2px #0a0a0a, 0 0 0 4px #0a77ff }
 	.tip { position: fixed; z-index: 2; padding: 4px 8px; border-radius: 8px; background: #111111; border: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); white-space: nowrap; font-size: 12px; pointer-events: none; display: none }
 	.tip kbd { margin-left: 8px; color: #939393; font: 11px ui-monospace, monospace }
 	.sheet { width: 300px; max-width: calc(100vw - 72px); max-height: calc(100vh - 16px); overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; transition: opacity 0.2s ease-out, transform 0.2s ease-out }

@@ -13,7 +13,7 @@ export const runWebkitGtk = ({
 	url, steps, init = [], size, colorScheme,
 	isMotionReduced = false, out, prefix, snapMargin = 8,
 	isHeaded = false, isStorageKept = false,
-	waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, timeoutMs = TIMEOUT_MS, log
+	waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, timeoutMs = TIMEOUT_MS, onAnnotation, log
 }) => new Promise((resolve, reject) => {
 	if (!isWebkitGtkAvailable()) {
 		reject(new Error("WebKitGTK engine needs Linux with python3-gi and WebKit2 4.1 (gir1.2-webkit2-4.1)"));
@@ -62,7 +62,10 @@ export const runWebkitGtk = ({
 			const value = JSON.parse(line.slice(tab + 1));
 			if (kind === "saved") saved.push(value);
 			else if (kind === "film") films.push(value);
-			else if (kind === "annotate") annotations.push(value);
+			else if (kind === "annotate") {
+				annotations.push(value);
+				onAnnotation?.(value);
+			}
 			else if (kind === "print") log.info(value);
 			else if (kind === "error") log.error(value);
 			else if (kind === "init-errors") reportInitErrors(value, log);

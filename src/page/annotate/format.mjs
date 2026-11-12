@@ -1,9 +1,10 @@
 export const formatAnnotation = annotation => {
 	const lines = [];
 	const { name, status, result } = annotation;
-	if (status !== "done" || !result) return [`annotate ${name}: cancelled`];
+	if ((status !== "done" && status !== "sent") || !result) return [`annotate ${name}: cancelled`];
 	const elementCount = Object.keys(result.elements).length;
-	lines.push(`annotate ${name}: done · ${result.notes.length} note(s) · ${elementCount} element(s)${result.generalNote ? " · 1 general note" : ""}${result.maskedCount ? ` · ${result.maskedCount} private element(s) hidden` : ""}`);
+	const round = annotation.round > 1 || status === "sent" ? ` (round ${annotation.round ?? 1})` : "";
+	lines.push(`annotate ${name}: ${status}${round} · ${result.notes.length} note(s) · ${elementCount} element(s)${result.generalNote ? " · 1 general note" : ""}${result.maskedCount ? ` · ${result.maskedCount} private element(s) hidden` : ""}`);
 	for (const note of result.notes) {
 		const targets = note.elements.map(id => {
 			const element = result.elements[id];

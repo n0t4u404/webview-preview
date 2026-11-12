@@ -14,7 +14,7 @@ export const ANNOTATE_KEY = "__webviewPreviewAnnotate";
 export const ANNOTATE_POLL_MS = 250;
 export const ANNOTATE_CLEANUP = `window.${ANNOTATE_KEY}?.cleanup?.()`;
 
-export const annotateStart = (name, keys = null, privateSelectors = []) => `(${annotatePanel})(${JSON.stringify({ key: ANNOTATE_KEY, name, markup: MARKUP, styles: STYLES, icons: ICONS })}, {
+export const annotateStart = (name, keys = null, privateSelectors = [], keepOpen = false) => `(${annotatePanel})(${JSON.stringify({ key: ANNOTATE_KEY, name, markup: MARKUP, styles: STYLES, icons: ICONS, keepOpen })}, {
 	keys: (${pageKeys})(${JSON.stringify(keys)}),
 	selectors: (${pageSelectors})(${JSON.stringify(privateSelectors)}),
 	react: (${pageReact})(),
@@ -29,17 +29,19 @@ export const ANNOTATE_CHECK = `(() => {
 		const draft = state.version !== state.sentVersion ? (state.sentVersion = state.version, state.draft()) : null;
 		const captures = state.captures.splice(0);
 		if (captures.length) state.capturing = captures;
-		return draft || captures.length ? JSON.stringify({ status: "open", draft, captures }) : null;
+		const url = location.href !== state.sentUrl ? (state.sentUrl = location.href) : null;
+		return draft || captures.length || url ? JSON.stringify({ status: "open", draft, captures, url }) : null;
 	}
 	return JSON.stringify({ status: state.status, result: state.result, keys: state.keys });
 })()`;
 
 export const annotateRestore = draft => `window.${ANNOTATE_KEY}Draft = ${JSON.stringify(draft)};`;
 
-export const annotateStep = (name, keys, privateSelectors = []) => ({
+export const annotateStep = (name, keys, privateSelectors = [], keepOpen = false) => ({
 	kind: "annotate",
 	value: name,
-	start: annotateStart(name, keys, privateSelectors),
+	start: annotateStart(name, keys, privateSelectors, keepOpen),
+	resume: `window.${ANNOTATE_KEY}?.resume?.()`,
 	check: ANNOTATE_CHECK,
 	hide: `window.${ANNOTATE_KEY}?.setHidden?.(true)`,
 	show: `window.${ANNOTATE_KEY}?.setHidden?.(false)`,
