@@ -11,7 +11,7 @@ import { resolveInit, wrapInit } from "#src/page/init.mjs";
 import { compileMock, mockScript, resolveMockFiles } from "#src/page/mock.mjs";
 import { startServer } from "#src/core/server.mjs";
 import { watchFiles } from "#src/core/watch.mjs";
-import { expandMacros, parseSize, parseSteps } from "#src/core/steps.mjs";
+import { expandMacros, parseSize, parseSteps, runTimeoutMs } from "#src/core/steps.mjs";
 import { checkLatency, networkScript } from "#src/page/network.mjs";
 import { resolveTauri, tauriScript } from "#src/page/tauri.mjs";
 
@@ -130,6 +130,9 @@ export const preview = async (options = {}) => {
 				isHeaded: !!merged.headed,
 				isStorageKept: !!merged.keepStorage,
 				waitForTimeoutMs: Number(merged.waitTimeout ?? 10000),
+				timeoutMs: merged.timeout === undefined
+					? runTimeoutMs([...steps, consoleStep], Number(merged.waitTimeout ?? 10000))
+					: Number(merged.timeout),
 				log: output.log
 			});
 			result.saved.push(...run.saved);

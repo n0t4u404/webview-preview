@@ -170,6 +170,7 @@ npx webview-preview /settings snap:settings
 | `headed` | WebKitGTK: show a real window instead of rendering off-screen. | `false` |
 | `snapMargin` | Room in CSS pixels around `snap:name@selector`, so focus rings and shadows fit. | `8` |
 | `waitTimeout` | How long `waitfor:` waits, ms. | `10000` |
+| `timeout` | Limit for the whole run, ms; `0` turns it off. The run stops with `timed out after … ms` and keeps the snapshots taken so far. | 30 s plus a budget per step: its own time for `wait:` / `film:`, `waitTimeout` for `waitfor:`, 2 s + 0.1 s per character for `type:`, 2 s for any other step |
 | `keepStorage` | WebKitGTK: keep `localStorage`, cookies and cache between runs. By default every run starts clean, like Playwright engines always do. | `false` |
 | `compare` / `updateBaseline` / `baseline` / `maxDiffPixels` / `compareTolerance` | See [Comparing with a baseline](#comparing-with-a-baseline). | — |
 | `init` | Code that runs **before the page's own scripts**, on every load: a string, `{ file: "path" }`, or a list of them. See [below](#1-init--set-things-up-before-the-app-starts). | — |
@@ -337,6 +338,7 @@ webview-preview [route-or-url] [steps...] [options]
 | `--headed` | WebKitGTK: show a real window |
 | `--snap-margin <px>` | Room around `snap:name@selector` |
 | `--wait-timeout <ms>` | How long `waitfor:` waits |
+| `--timeout <ms>` | Limit for the whole run; `0` = none |
 | `--keep-storage` | WebKitGTK: keep storage between runs |
 | `--report` | Write `<out>/report.html` with the output and all snapshots (baseline and difference after `--compare`) |
 | `--compare` / `--update-baseline` | Compare snapshots with baselines / replace the baselines |
@@ -627,13 +629,13 @@ invisible rounding noise; raise it a little if antialiasing differs between mach
 Snapshots pile up in the snapshot folder. Clear them when you no longer need them:
 
 ```sh
-npx webview-preview clean                  # delete every *.png in the snapshot folder
+npx webview-preview clean                  # delete every *.png and report.html in the snapshot folder
 npx webview-preview clean --dry-run        # only list what would be deleted
 npx webview-preview clean --older-than 2h  # only files older than 2 hours (30m, 7d …)
 ```
 
 `clean` reads the same config (`out`, `baseline`) as a normal run. It deletes only `*.png` files directly in the
-snapshot folder (including `.diff.png`), never the baselines, and refuses to run when the snapshot folder is the
+snapshot folder (including `.diff.png`) and `report.html`, never the baselines, and refuses to run when the snapshot folder is the
 project folder, your home folder, the disk root or the baseline folder.
 
 ## Recipes
@@ -725,7 +727,7 @@ More of these — animations frame by frame, measuring, getting past login — i
 | `Server did not open port …` | The `server.command` failed or uses another port. Run it by hand to see why; raise `readyTimeoutMs` for slow starts. |
 | `"/route" is not a full URL` | Set `baseUrl` in the config or pass `--base-url`. |
 | Blank snapshot | The page needs more time or threw on start: add `wait:2000`, and `print:document.body.innerHTML.length`. |
-| `timed out after 30000 ms` (WebKitGTK) | A run longer than 30 s; split it into several runs. |
+| `timed out after … ms` | The run took longer than its limit (30 s plus a budget per step). A step is stuck — check the last output before the message — or the steps really need more: raise `--timeout`, or `--timeout 0` for no limit. |
 | The app starts in its default state every time | Runs start with empty storage on purpose. Set what you need with [`init`](#1-init--set-things-up-before-the-app-starts), or pass `--keep-storage` (WebKitGTK) to carry it over. |
 | `waitfor:… timed out` | The element never became visible, or keeps moving (an endless animation). Check with `measure:`; raise `--wait-timeout`; use `wait:` for elements that never stop moving. |
 | `--headed` Linux snapshot is twice the size | A real window follows your screen's scale (HiDPI): PNG pixels = CSS pixels × scale. Off-screen snapshots are 1×. |

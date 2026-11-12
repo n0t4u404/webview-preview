@@ -53,6 +53,7 @@ export interface PreviewConfig {
 	headed?: boolean;
 	keepStorage?: boolean;
 	waitTimeout?: number;
+	timeout?: number;
 	snapMargin?: number;
 	compare?: boolean;
 	updateBaseline?: boolean;

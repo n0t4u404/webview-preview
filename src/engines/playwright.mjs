@@ -19,8 +19,9 @@ const loadPlaywright = async () => {
 export const runPlaywright = async ({
 	engine, url, steps, init = [], size, locale,
 	colorScheme, isMotionReduced = false, out, prefix, scale,
-	snapMargin = 8, waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, log
+	snapMargin = 8, waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, timeoutMs = TIMEOUT_MS, log
 }) => {
+	const deadline = timeoutMs > 0 ? Date.now() + timeoutMs : Infinity;
 	const playwright = await loadPlaywright();
 	const browserType = engine === "webkit" ? playwright.webkit : playwright.chromium;
 	const browser = await browserType.launch({ channel: CHANNELS[engine], headless: true });
@@ -113,6 +114,11 @@ export const runPlaywright = async ({
 		}
 
 		for (const step of steps) {
+			if (Date.now() > deadline) {
+				failed = true;
+				log.error(`timed out after ${timeoutMs} ms`);
+				break;
+			}
 			try {
 				await runStep(step);
 			} catch (error) {

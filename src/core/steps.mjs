@@ -5,6 +5,16 @@ export const JS_SETTLE_MS = 700;
 export const TIMEOUT_MS = 30000;
 export const WAIT_FOR_TIMEOUT_MS = 10000;
 export const WAIT_FOR_POLL_MS = 50;
+const STEP_BUDGET_MS = 2000;
+const TYPE_KEY_BUDGET_MS = 100;
+
+export const runTimeoutMs = (steps, waitForTimeoutMs) => TIMEOUT_MS + steps.reduce((total, step) => total + (
+	step.kind === "wait" ? Number(step.value)
+		: step.kind === "film" ? step.durationMs + STEP_BUDGET_MS
+			: step.kind === "waitfor" ? waitForTimeoutMs
+				: step.kind === "type" ? STEP_BUDGET_MS + TYPE_KEY_BUDGET_MS * [...step.value].length
+					: STEP_BUDGET_MS
+), 0);
 
 const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "focusorder", "resize", "key", "type", "hover", "click", "offline", "online", "latency", "film"]);
 export const ASSERT_MARKER = "__webviewPreviewAssert:";

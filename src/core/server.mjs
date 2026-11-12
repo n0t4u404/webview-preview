@@ -3,6 +3,7 @@ import net from "node:net";
 
 const POLL_MS = 250;
 const DEFAULT_READY_TIMEOUT_MS = 30000;
+const running = new Set();
 
 const isPortOpen = (port, host) => new Promise(resolve => {
 	const socket = net.connect(port, host);
@@ -47,11 +48,20 @@ export const startServer = async server => {
 		stdio: "ignore",
 		detached: process.platform !== "win32"
 	});
+	const stop = () => {
+		running.delete(stop);
+		stopProcessTree(child);
+	}
+	running.add(stop);
 	try {
 		await waitForPort(port, host, readyTimeoutMs);
 	} catch (error) {
-		stopProcessTree(child);
+		stop();
 		throw error;
 	}
-	return () => stopProcessTree(child);
+	return stop;
+}
+
+export const stopServers = () => {
+	for (const stop of [...running]) stop();
 }

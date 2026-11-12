@@ -22,6 +22,7 @@
 	<button id="fail" type="button" onclick="console.error('broken on purpose')">Fail</button>
 </form>
 <p id="user">nobody</p>
+<input id="slow" name="slow" aria-label="Slow" oninput="const end = performance.now() + 60; while (performance.now() < end) {}">
 <dialog>
 	<p>Dialog</p>
 	<button id="ok" type="button">OK</button>

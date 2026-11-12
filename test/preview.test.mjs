@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { preview } from "#src/index.mjs";
+import { cleanSnapshots, preview } from "#src/index.mjs";
 import { readPng } from "#src/snapshots/png.mjs";
 
 const engine = process.env.WEBVIEW_PREVIEW_ENGINE ?? "auto";
@@ -58,6 +58,18 @@ test("keyboard and mouse", async () => {
 		"waitfor:dialog[open]",
 		"key:Escape",
 		"waitfor:!dialog[open]"
+	]);
+	assert.equal(result.failed, false, result.lines.join("\n"));
+});
+
+test("a long text typed into a slow field all lands there before the next step", async () => {
+	const text = "Updating the servers to version 1.1, back by the evening.";
+	const result = await run([
+		"click:#slow",
+		`type:${text}`,
+		"click:#name",
+		`assert:document.querySelector('#slow').value === ${JSON.stringify(text)}`,
+		"assert:document.querySelector('#name').value === ''"
 	]);
 	assert.equal(result.failed, false, result.lines.join("\n"));
 });
@@ -140,4 +152,34 @@ test("compare and report", async () => {
 	assert.ok(existsSync(diffFile));
 	await run(steps, { baseline, compare: true });
 	assert.ok(!existsSync(diffFile), "a stale diff stays after a clean compare");
+});
+
+test("the run limit stops long runs and keeps what was saved", async () => {
+	const result = await run(["snap:before", "wait:8000", "snap:after"], { timeout: 5000 });
+	assert.equal(result.failed, true);
+	assert.ok(result.lines.some(line => /timed out after 5000 ms/.test(line)), result.lines.join("\n"));
+	assert.ok(result.saved.some(file => file.endsWith("before.png")), "the snapshot before the limit is lost");
+	const unlimited = await run(["wait:2000", "snap:done"], { timeout: 0 });
+	assert.equal(unlimited.failed, false, unlimited.lines.join("\n"));
+});
+
+test("one keyup reaches the page for every key", async () => {
+	const result = await run([
+		"click:#name",
+		"type:ab",
+		"key:Shift+Tab",
+		"assert:window.__keyups.join(',') === 'a,b,Tab,Shift'"
+	], { init: "window.__keyups = []; addEventListener('keyup', event => window.__keyups.push(event.key), true)" });
+	assert.equal(result.failed, false, result.lines.join("\n"));
+});
+
+test("clean deletes snapshots and the report, not the baselines", async () => {
+	const folder = mkdtempSync(path.join(os.tmpdir(), "webview-preview-clean-"));
+	const baseline = path.join(folder, "baseline");
+	await run(["snap:kept@#form"], { out: folder, baseline, updateBaseline: true, report: true });
+	assert.ok(existsSync(path.join(folder, "report.html")));
+	const { removed } = await cleanSnapshots({ config: false, out: folder, baseline });
+	assert.ok(removed.some(file => file.endsWith("report.html")), removed.join("\n"));
+	assert.ok(!existsSync(path.join(folder, "report.html")));
+	assert.ok(existsSync(baseline) && readdirSync(baseline).length > 0, "baselines were deleted");
 });

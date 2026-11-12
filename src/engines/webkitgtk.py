@@ -149,7 +149,10 @@ def main():
         if found and entries:
             event.key.hardware_keycode = entries[0].keycode
         event.set_device(seat.get_keyboard())
-        deliver(event)
+        if kind == Gdk.EventType.KEY_RELEASE:
+            Gtk.main_do_event(event)
+        else:
+            deliver(event)
 
     def press(keyval, modifiers=()):
         mask = Gdk.ModifierType(0)
@@ -162,22 +165,31 @@ def main():
             key_event(Gdk.EventType.KEY_RELEASE, Gdk.keyval_from_name(MODIFIER_KEYS[modifier]), mask)
             mask &= ~MODIFIER_MASKS[modifier]
 
-    def press_all(presses):
+    def press_all(label, presses):
         def count(text):
             return int(text) if text and text.isdigit() else 0
 
         def send(text):
-            expected = count(text) + sum(1 + len(modifiers) for _, modifiers in presses)
+            start = count(text)
+            expected = start + sum(1 + len(modifiers) for _, modifiers in presses)
             for keyval, modifiers in presses:
                 press(keyval, modifiers)
-            started = GLib.get_monotonic_time()
+            progress = {"keyups": start, "since": GLib.get_monotonic_time()}
 
             def check():
                 def on_value(text):
-                    if count(text) >= expected or (GLib.get_monotonic_time() - started) / 1000 >= KEY_WAIT_MS:
+                    keyups = count(text)
+                    if keyups >= expected:
                         GLib.timeout_add(INPUT_SETTLE_MS, run_step)
-                    else:
-                        GLib.timeout_add(KEY_POLL_MS, lambda: (check(), False)[1])
+                        return
+                    now = GLib.get_monotonic_time()
+                    if keyups > progress["keyups"]:
+                        progress.update(keyups=keyups, since=now)
+                    elif (now - progress["since"]) / 1000 >= KEY_WAIT_MS:
+                        step_failed(f"{label}: only {keyups - start} of {expected - start} key presses reached the page")
+                        GLib.timeout_add(INPUT_SETTLE_MS, run_step)
+                        return
+                    GLib.timeout_add(KEY_POLL_MS, lambda: (check(), False)[1])
 
                 evaluate(KEYUPS, on_value, lambda _: GLib.timeout_add(INPUT_SETTLE_MS, run_step))
 
@@ -364,9 +376,9 @@ def main():
         elif kind in ("hover", "click"):
             with_rect(step, lambda rect: point_at(step, rect))
         elif kind == "key":
-            press_all([(keyval_for(step["key"]), step["modifiers"])])
+            press_all(f"key:{value}", [(keyval_for(step["key"]), step["modifiers"])])
         elif kind == "type":
-            press_all([(Gdk.unicode_to_keyval(ord(character)), ()) for character in value])
+            press_all("type", [(Gdk.unicode_to_keyval(ord(character)), ()) for character in value])
         return False
 
     def start_steps():
@@ -396,7 +408,8 @@ def main():
     view.connect("load-changed", on_load_changed)
     view.connect("load-failed", on_load_failed)
     view.load_uri(args.url)
-    GLib.timeout_add(args.timeout_ms, on_timeout)
+    if args.timeout_ms > 0:
+        GLib.timeout_add(args.timeout_ms, on_timeout)
     Gtk.main()
 
     sys.stdout.flush()

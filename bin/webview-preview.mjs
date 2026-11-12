@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { stopServers } from "#src/core/server.mjs";
 import { cleanSnapshots, ENGINES, preview, watchPreview } from "#src/index.mjs";
+
+const PARENT_POLL_MS = 1000;
 
 const FLAGS = {
 	"--engine": "engine",
@@ -16,6 +19,7 @@ const FLAGS = {
 	"--compare-tolerance": "compareTolerance",
 	"--older-than": "olderThan",
 	"--wait-timeout": "waitTimeout",
+	"--timeout": "timeout",
 	"--locale": "locale",
 	"--color-scheme": "colorScheme",
 	"--latency": "latency"
@@ -63,6 +67,7 @@ Options:
   --snap-margin <px>  room around snap:name@selector (default: 8)
   --headed         WebKitGTK: show a real window instead of rendering off-screen
   --wait-timeout <ms>  how long waitfor waits (default: 10000)
+  --timeout <ms>   limit for the whole run; 0 = none (default: 30 s plus a budget per step)
   --keep-storage   WebKitGTK: keep localStorage, cookies and cache between runs (default: start clean)
   --report         write <out>/report.html: the output and every snapshot, with baseline and
                    difference next to it after --compare
@@ -187,17 +192,24 @@ try {
 		if (steps.length) throw new Error(`clean takes no steps, got ${steps.join(" ")}`);
 		const { removed, out } = await cleanSnapshots(cleanOptions);
 		for (const file of removed) console.log(file);
-		console.log(`${cleanOptions.dryRun ? "would delete" : "deleted"} ${removed.length} snapshot(s) in ${out}`);
+		console.log(`${cleanOptions.dryRun ? "would delete" : "deleted"} ${removed.length} file(s) in ${out}`);
 		process.exit(0);
 	}
 	const { isWatching, ...previewOptions } = parsed.options;
+	let stopWatching = () => {}
+	const exitCleanly = code => {
+		stopWatching();
+		stopServers();
+		process.exit(code);
+	}
+	for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(signal, () => exitCleanly(isWatching ? 0 : 1));
+	const parentPid = process.ppid;
+	setInterval(() => {
+		if (process.ppid !== parentPid) exitCleanly(1);
+	}, PARENT_POLL_MS).unref();
 	if (isWatching) {
-		const stop = await watchPreview(previewOptions, result => {
+		stopWatching = await watchPreview(previewOptions, result => {
 			for (const file of result.saved) console.log(file);
-		});
-		for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(signal, () => {
-			stop();
-			process.exit(0);
 		});
 		await new Promise(() => {});
 	}
