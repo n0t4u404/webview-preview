@@ -71,6 +71,13 @@ const loadMap = async moduleUrl => {
 	return JSON.parse(await readText(new URL(reference, moduleUrl).href));
 }
 
+const projectPath = (file, baseDir) => {
+	if (!path.isAbsolute(file)) return file.replaceAll("\\", "/");
+	const relative = path.relative(baseDir, path.resolve(file));
+	const isInside = relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+	return (isInside ? relative : file).replaceAll("\\", "/");
+}
+
 const SKIPPED_FOLDERS = new Set(["node_modules", ".git", "dist", "build", "target", "out"]);
 
 const projectRoots = baseDir => {
@@ -108,7 +115,7 @@ const sourcePath = (map, source, moduleUrl, baseDir, roots) => {
 		file = resolved.protocol === "file:" ? fileURLToPath(resolved) : decodeURIComponent(resolved.pathname);
 	}
 	if (path.isAbsolute(file)) file = onDisk(file, roots());
-	return path.isAbsolute(file) && file.startsWith(baseDir) ? path.relative(baseDir, file) : file;
+	return projectPath(file, baseDir);
 }
 
 export const createSourceResolver = baseDir => {
@@ -123,7 +130,7 @@ export const createSourceResolver = baseDir => {
 		if (!frame) return null;
 		if (frame.file) {
 			const file = path.isAbsolute(frame.file) ? onDisk(frame.file, getRoots()) : frame.file;
-			return { file: path.isAbsolute(file) && file.startsWith(baseDir) ? path.relative(baseDir, file) : file, line: frame.line, column: frame.column, how: frame.how ?? "debug-source" }
+			return { file: projectPath(file, baseDir), line: frame.line, column: frame.column, how: frame.how ?? "debug-source" }
 		}
 		const map = await mapFor(frame.url);
 		const position = map && originalPosition(map, frame.line, frame.column);
