@@ -66,6 +66,30 @@ element.getClientRects().length > 0
 If the project's config has macros (`macros` in `webview-preview.config.mjs` — signing in, opening a dialog), use them
 (`macro:signIn`): they are already correct. A flow you repeat more than twice belongs there too.
 
+## When the user wants to show you what to change
+
+If the user says "I'll show you" or points at UI in words that do not pin an element down, let them point instead:
+
+```
+npx webview-preview /screen <steps to reach it> annotate:review
+```
+
+- It opens a **real window** and **waits for the person** — there is no run limit. Start it in the background (or
+  tell the user to run it) and wait for the process to end; do not poll the window.
+- Read the stdout summary first: one line per note with the component, `file:line` and the note's text. The full
+  data is in `<prefix>annotate-review.json` next to the snapshots; pictures are `annotate-review.png` (with markers)
+  and `annotate-review-e1.png` … (each element). Open a picture only after the JSON.
+- `component.source` with `confidence: "exact"` is where that element's JSX is written; `"nearest"` is where the
+  component around it is used (text inside a widget) — edit the call site, not the widget, unless the note says the
+  widget itself is wrong; `"file"` (Vue) has no line. Treat all of it as a strong hint and check the code.
+- `selector` works in `measure:` / `snap:@` / `click:` for checking your change in the same state. If
+  `selectorQuality` is `"positional"`, it breaks once the DOM changes — measure before you edit.
+- Notes can come from several pages (`note.url`), and from a frozen state (`note.isFrozen`): that state may not be
+  reachable with steps alone — say so if you cannot reproduce it.
+- `status: "cancelled"` means the person closed it without notes; ask them, do not guess.
+- Private elements come as `•••` with `isPrivate: true`; do not ask the user to remove the masking.
+- Never put `annotate` into CI or a script that nobody watches; it never ends there.
+
 ## Errors in the page
 
 After the steps the tool prints the page's `console.error` calls, uncaught exceptions and unhandled rejections

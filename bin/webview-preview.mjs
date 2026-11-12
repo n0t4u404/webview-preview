@@ -24,7 +24,7 @@ const FLAGS = {
 	"--color-scheme": "colorScheme",
 	"--latency": "latency"
 }
-const LIST_FLAGS = { "--init": "init", "--init-file": "initFile", "--mock-file": "mockFile" }
+const LIST_FLAGS = { "--init": "init", "--init-file": "initFile", "--mock-file": "mockFile", "--private": "private" }
 
 const HELP = `Usage: webview-preview [route-or-url] [steps...] [options]
        webview-preview clean [--dry-run] [--older-than 2h] [--out <dir>] [--config <file>]
@@ -79,6 +79,7 @@ Options:
   --base-url <url> prepended to routes that are not full URLs
   --init <code>    run code before the page's own scripts, on every load (repeatable)
   --init-file <f>  same, from a file (repeatable)
+  --private <css>  annotate: hide these elements' text and pixels in the report too (repeatable)
   --mock-file <f>  answer fetch/XHR requests from a .json/.mjs file of mocks (repeatable);
                    every request is listed in window.__webviewPreviewRequests
   --log-requests   only list fetch/XHR requests in window.__webviewPreviewRequests

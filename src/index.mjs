@@ -12,6 +12,10 @@ import { compileMock, mockScript, resolveMockFiles } from "#src/page/mock.mjs";
 import { startServer } from "#src/core/server.mjs";
 import { watchFiles } from "#src/core/watch.mjs";
 import { expandMacros, parseSize, parseSteps, runTimeoutMs } from "#src/core/steps.mjs";
+import { loadAnnotateKeys, saveAnnotateKeys } from "#src/core/annotate-settings.mjs";
+import { writeAnnotationReport } from "#src/core/annotate-report.mjs";
+import { createSourceResolver } from "#src/core/source-map.mjs";
+import { annotateStep, formatAnnotation } from "#src/page/annotate/index.mjs";
 import { checkLatency, networkScript } from "#src/page/network.mjs";
 import { resolveTauri, tauriScript } from "#src/page/tauri.mjs";
 
@@ -50,13 +54,27 @@ const checkColorScheme = value => {
 	return value;
 }
 
+const resolveSources = async (annotation, baseDir) => {
+	const resolve = createSourceResolver(baseDir);
+	for (const element of Object.values(annotation.result?.elements ?? {})) {
+		const { component } = element;
+		if (!component) continue;
+		const confidence = component.source?.confidence;
+		component.source = component.source && { ...await resolve(component.source), confidence }
+		component.chain = await Promise.all(component.chain.map(async item => ({ name: item.name, usedAt: await resolve(item.usedAt) })));
+	}
+}
+
 export const preview = async (options = {}) => {
 	const config = options.config === false ? {} : await loadConfig(options.config);
 	const merged = { ...DEFAULTS, ...config, ...Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined)) }
 	const baseDir = config.configDir ?? process.cwd();
 	const engine = resolveEngine(merged.engine);
 	const macros = { ...config.macros, ...options.macros }
-	const steps = parseSteps(expandMacros(merged.steps.length ? merged.steps : DEFAULTS.steps, macros));
+	const parsedSteps = parseSteps(expandMacros(merged.steps.length ? merged.steps : DEFAULTS.steps, macros));
+	const savedKeys = parsedSteps.some(step => step.kind === "annotate") ? loadAnnotateKeys() : null;
+	const privateSelectors = [...(config.annotate?.private ?? []), ...[].concat(options.private ?? [])].map(String);
+	const steps = parsedSteps.map(step => step.kind === "annotate" ? annotateStep(step.value, savedKeys, privateSelectors) : step);
 	const out = path.resolve(baseDir, merged.out);
 	const url = resolveUrl(merged.target ?? merged.url ?? "/", merged.baseUrl);
 	const sizes = parseSizes(merged.size);
@@ -112,7 +130,8 @@ export const preview = async (options = {}) => {
 	const stopServer = await startServer(server);
 	try {
 		const prefix = merged.prefix ?? `${engine}-`;
-		const result = { saved: [], failed: false }
+		const result = { saved: [], failed: false, annotations: [] }
+		const hasAnnotate = steps.some(step => step.kind === "annotate");
 		for (const size of sizes) {
 			if (sizes.length > 1) output.log.info(`size ${size}`);
 			const run = await runEngine(engine, {
@@ -127,15 +146,37 @@ export const preview = async (options = {}) => {
 				prefix: sizes.length > 1 ? `${prefix}${size}-` : prefix,
 				scale: merged.scale === undefined ? undefined : Number(merged.scale),
 				snapMargin,
-				isHeaded: !!merged.headed,
+				isHeaded: merged.headed === undefined ? hasAnnotate : !!merged.headed,
 				isStorageKept: !!merged.keepStorage,
 				waitForTimeoutMs: Number(merged.waitTimeout ?? 10000),
-				timeoutMs: merged.timeout === undefined
-					? runTimeoutMs([...steps, consoleStep], Number(merged.waitTimeout ?? 10000))
-					: Number(merged.timeout),
+				timeoutMs: merged.timeout !== undefined ? Number(merged.timeout)
+					: hasAnnotate ? 0
+						: runTimeoutMs([...steps, consoleStep], Number(merged.waitTimeout ?? 10000)),
 				log: output.log
 			});
 			result.saved.push(...run.saved);
+			for (const annotation of run.annotations ?? []) {
+				try {
+					await resolveSources(annotation, baseDir);
+				} catch (error) {
+					output.log.error(`annotate: source files not resolved — ${error.message}`);
+				}
+				if (annotation.keys) {
+					try {
+						output.log.info(`annotate keys saved → ${saveAnnotateKeys(annotation.keys)}`);
+					} catch (error) {
+						output.log.error(`annotate: keys not saved — ${error.message}`);
+					}
+				}
+				delete annotation.keys;
+				for (const line of formatAnnotation(annotation)) output.log.info(line);
+				if (annotation.status === "done") {
+					const files = writeAnnotationReport({ annotation, out, prefix: sizes.length > 1 ? `${prefix}${size}-` : prefix, engine, url, baseUrl: merged.baseUrl, size: parseSize(size) });
+					output.log.info(`  → ${files.json}`);
+					output.log.info(`  → ${files.markdown}`);
+					result.annotations.push(files.report);
+				} else result.annotations.push(annotation);
+			}
 			for (const film of run.films ?? []) {
 				try {
 					output.log.info(stitchFilm(film, snapMargin));

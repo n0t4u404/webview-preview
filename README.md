@@ -28,6 +28,7 @@ plain init scripts and fit there too.
 - [Quick start](#quick-start)
 - [Config file](#config-file)
 - [Steps](#steps)
+- [Annotate — show what to change](#annotate--show-what-to-change)
 - [Macros](#macros)
 - [Errors in the page](#errors-in-the-page)
 - [Command line](#command-line)
@@ -239,6 +240,7 @@ Steps run one after another, after the page has loaded and settled for 1.5 s.
 | `film:<name>:<ms>[/<n>][@<selector>]` | Takes n frames (10 by default, up to 60) evenly over ms, starting now, and puts them into one `<prefix><name>.png`, 5 per row, left to right. With a selector every frame is cropped to the area the element covered during the whole film (plus `--snap-margin`). Prints the real time of every frame: `film open: 10 frames at 0 55 111 … 500 ms`. Put it right after the step that starts the animation. |
 | `resize:<W>x<H>` | Resizes the window. |
 | `macro:<name>` | Runs the steps of a macro from the config. See [Macros](#macros). |
+| `annotate` / `annotate:<name>` | Opens a real window with a panel where a person clicks elements and writes what to change, and waits for **Done**. Writes a JSON and a Markdown report with pictures. See [Annotate](#annotate--show-what-to-change). |
 
 ### Selectors
 
@@ -273,6 +275,107 @@ npx webview-preview / \
 ```
 
 On Windows PowerShell use the same double quotes; inside them, keep JavaScript strings in single quotes.
+
+## Annotate — show what to change
+
+Describing a change in words ("the button on the right is a bit off") leaves whoever makes it guessing which element
+you mean. `annotate` lets you point at it instead: the run opens a real window, you click elements and write a note
+next to each, press **Done**, and get the exact element, where it comes from in the code and how it looks now.
+
+```sh
+npx webview-preview /settings annotate
+npx webview-preview /auth macro:signIn "click:text=Stats" annotate:stats snap:after
+npx webview-preview https://example.com annotate          # any site works
+```
+
+![Picking an element: the outline shows the element, its parent and its size; the tools are on the left](assets/readme/annotate-pick.png)
+
+The steps before `annotate` reach the screen; the steps after it run once you are done. The step waits for you as
+long as it takes (no run limit unless you pass `--timeout`) and always opens a window — WebKitGTK as with `--headed`,
+the other engines without `headless`.
+
+**The panel** sits in the top-left corner, as a strip of icons; drag it by the dots on top.
+
+| Tool | Key | What it does |
+|---|---|---|
+| Show / hide tools | `T` | Folds the strip down to one icon. |
+| Pick | `P` | Hover outlines an element with its size and its parent (`div.card › span "23" · 253 × 40`); a click picks it. Clicks do not reach the page while Pick is on — turn it off to use the app (open a menu, go to another screen), then on again. |
+| Notes | `N` | The list of notes. It also opens when you pick an element, with the cursor in the note's text. |
+| Freeze | `F` | Counts down 3 s (on the button) — hover what has to stay open meanwhile. Then animations stop and the page no longer hears the mouse leave or focus go (`mouseleave`, `pointerout`, `blur`, `focusout`, mouse moves), so tooltips and menus stay open to be picked. `F` again unfreezes. A menu that closes on a timer or by its own logic can still close. |
+| Key bindings | — | Click an action, press the new key. Saved for the next runs in your user settings (`~/.config/webview-preview/annotate.json` on Linux, `%APPDATA%\webview-preview\` on Windows, `~/Library/Application Support/webview-preview/` on macOS). |
+| Done / Cancel | `Ctrl+Enter` | Done writes the report; Cancel or closing the window ends with nothing. |
+
+- **Click** — a new note; **Shift+click** — adds the element to the open note ("align these two"); clicking an
+  element that already has a note opens that note.
+- **Alt + mouse wheel** or `↑` / `↓` — the parent / back to the child, when the click would land on an inner `<span>`.
+- **Escape** closes the notes card; the notes stay. The **general note** at the bottom is about the whole screen.
+- **Several pages:** go to another screen (turn Pick off, navigate, turn it on) — the notes stay, also when the page
+  reloads. Elements are cut out the moment you pick them; coming back to a page shows their markers again.
+- Keys follow the physical key, so they work in any keyboard layout.
+
+![Two notes: the second one is about two buttons at once and is open in the notes card](assets/readme/annotate-notes.png)
+
+![Freeze: the tooltip that appears on hover stays open, so it can be picked](assets/readme/annotate-freeze.png)
+
+**What you get.** A summary on stdout, one line per note:
+
+```
+annotate stats: done · 2 note(s) · 2 element(s)
+  1. StyledTextWidget span.text "1 284" (src/routes/stats/stats.parts.tsx:22) — make the number smaller
+     e1: [class*="stats__tiles"] > div:nth-child(1) > span:nth-child(2)
+  → .webview-preview/webkitgtk-annotate-stats.json
+  → .webview-preview/webkitgtk-annotate-stats.md
+```
+
+and files in the snapshot folder:
+
+| File | What |
+|---|---|
+| `<prefix>annotate-<name>.png` | The screen where you pressed Done, with the numbered markers. |
+| `<prefix>annotate-<name>-<id>.png` | Every element cut out, without markers. |
+| `<prefix>annotate-<name>.json` | Everything: notes, the page of each note, and for every element its selector, text, size, box, font and colours, and its component. |
+| `<prefix>annotate-<name>.md` | A report for people: paste it into an issue as it is, pictures included. |
+
+![The marked screen from the report: numbered markers on the picked elements, the e-mail painted over](assets/readme/annotate-report.png)
+
+These pictures are not snapshots of the run: `--compare` and `--update-baseline` leave them alone.
+
+**Try it** on the demo app in this repository (a small React page made for these pictures):
+
+```sh
+cd examples/demo && npm install
+npx webview-preview / annotate
+```
+
+**Where an element comes from in the code** — in development builds only:
+
+- **React** (16–19): the component, the chain of components above it, and the file and line where its JSX is written,
+  mapped back through the dev server's source maps. `confidence: "exact"` is the element's own JSX;
+  `"nearest"` is where the component around it is used (for text inside a widget).
+- **Vue** 2 and 3: the component, its chain and its `.vue` file (`confidence: "file"`, no line).
+- Anything else, and production builds: no component, the rest of the report as usual.
+
+Component names and lines come from React's and Vue's internals and are a strong hint, not a promise. The
+`selector` is for this session: `selectorQuality: "positional"` (it has `:nth-child`) breaks when the page changes —
+add a `data-testid` where you need a lasting one.
+
+**Strict sites** (Content Security Policy, Trusted Types — YouTube, for example) work: the panel builds its DOM
+without `innerHTML` and adopts its styles instead of inserting a `<style>`.
+
+**Private data.** The report holds pictures and text from the page, and it may go to someone else or to an AI agent.
+Some elements are hidden by default: password fields, card and one-time-code fields (`autocomplete`), and anything
+inside `[data-private]` or `[data-webview-preview-private]`. Add your own selectors with `--private <selector>`
+(repeatable) or in the config:
+
+```js
+export default { annotate: { private: ["[class*=email]", ".token"] } }
+```
+
+Hidden elements are painted over on screen and in every picture (line by line, so the text around them stays). Their
+text becomes `•••`, also inside a picked parent, and their `aria-label` is left out of names and selectors. They get
+`isPrivate: true`; the report counts them (`maskedCount`), and the panel says how many are hidden. It is a safety
+net, not a guarantee — text drawn on a canvas or an e-mail in a plain `<span>` is not recognised — so prefer test
+accounts and mock data when the report leaves your machine.
 
 ## Macros
 
@@ -384,6 +487,7 @@ const result = await preview({
 result.engine; // "webkitgtk"
 result.saved;  // ["/abs/path/.webview-preview/webkitgtk-dark.png"]
 result.failed; // false
+result.annotations; // one report per annotate step (the same object as the .json file), or { status: "cancelled" }
 ```
 
 `preview()` reads the config file the same way the CLI does; pass `config: false` to skip it or `config: "path"` to
@@ -629,13 +733,13 @@ invisible rounding noise; raise it a little if antialiasing differs between mach
 Snapshots pile up in the snapshot folder. Clear them when you no longer need them:
 
 ```sh
-npx webview-preview clean                  # delete every *.png and report.html in the snapshot folder
+npx webview-preview clean                  # delete every *.png, report.html and annotate report in the snapshot folder
 npx webview-preview clean --dry-run        # only list what would be deleted
 npx webview-preview clean --older-than 2h  # only files older than 2 hours (30m, 7d …)
 ```
 
 `clean` reads the same config (`out`, `baseline`) as a normal run. It deletes only `*.png` files directly in the
-snapshot folder (including `.diff.png`) and `report.html`, never the baselines, and refuses to run when the snapshot folder is the
+snapshot folder (including `.diff.png`), `report.html` and the `annotate-*.json` / `.md` reports, never the baselines, and refuses to run when the snapshot folder is the
 project folder, your home folder, the disk root or the baseline folder.
 
 ## Recipes
@@ -755,6 +859,9 @@ The tests open `test/fixture/index.html` and check snapshots, input, focus order
 `film:`, compare and the report. GitHub Actions runs them on every push: WebKitGTK and Chromium on Linux, Edge and
 Chrome on Windows, WebKit on macOS; snapshots and reports of every run are kept as artifacts.
 
+The pictures in this README come from `examples/demo`: `node examples/demo/readme-images.mjs` takes them again
+(after `npm install` in `examples/demo`).
+
 ## License
 
-MIT © n0t4u404
+MIT © n0t4u404. The icons of the annotate panel are from [Lucide](https://lucide.dev) (ISC).

@@ -28,7 +28,7 @@ export const cleanSnapshots = async (options = {}) => {
 	const maxAge = options.olderThan ? parseDuration(options.olderThan) : 0;
 	const now = Date.now();
 	const removed = readdirSync(out)
-		.filter(name => name.toLowerCase().endsWith(".png") || name === "report.html")
+		.filter(name => name.toLowerCase().endsWith(".png") || name === "report.html" || /annotate-[\w.-]+\.(json|md)$/.test(name))
 		.map(name => path.join(out, name))
 		.filter(file => statSync(file).isFile() && (maxAge === 0 || now - statSync(file).mtimeMs >= maxAge));
 	if (!options.dryRun) for (const file of removed) rmSync(file);

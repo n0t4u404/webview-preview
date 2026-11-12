@@ -13,6 +13,8 @@ export type Step =
 	| `film:${string}:${number}/${number}`
 	| `film:${string}:${number}@${string}`
 	| `film:${string}:${number}/${number}@${string}`
+	| "annotate"
+	| `annotate:${string}`
 	| "offline"
 	| "online"
 	| `latency:${number}`
@@ -64,6 +66,7 @@ export interface PreviewConfig {
 	globals?: Record<string, unknown>;
 	locale?: string;
 	macros?: Record<string, Step[] | string[]>;
+	annotate?: { private?: string[] }
 	failOnError?: boolean;
 }
 
@@ -89,6 +92,7 @@ export interface MockResponse {
 export type InitEntry = string | { file: string }
 
 export interface PreviewOptions extends PreviewConfig {
+	private?: string | string[];
 	target?: string;
 	steps?: Step[] | string[];
 	initFile?: string | string[];
@@ -97,11 +101,56 @@ export interface PreviewOptions extends PreviewConfig {
 	log?: { info: (message: string) => void; error: (message: string) => void }
 }
 
+export interface AnnotationSource {
+	file: string;
+	line: number | null;
+	column: number | null;
+	how: "debug-source" | "debug-stack" | "vue-file";
+	confidence?: "exact" | "nearest" | "file";
+	isMapped?: false;
+}
+
+export interface AnnotationElement {
+	selector: string;
+	selectorQuality: "stable" | "positional";
+	tag: string;
+	role: string | null;
+	name: string | null;
+	text: string | null;
+	label: string;
+	component: {
+		name: string | null;
+		framework: "react" | "vue";
+		chain: { name: string; usedAt: AnnotationSource | null }[];
+		source: AnnotationSource | null;
+	} | null;
+	box: { margin: string; padding: string; border: string; borderRadius: string }
+	style: { display: string; font: string; color: string; background: string; opacity: string; gap: string }
+	rect: { x: number; y: number; width: number; height: number }
+	url: string;
+	isLive: boolean;
+	isPrivate: boolean;
+	image: string | null;
+}
+
+export interface Annotation {
+	version: 1;
+	name: string;
+	status: "done" | "cancelled";
+	page: { url: string; route: string; engine: Exclude<Engine, "auto">; size: { width: number; height: number }; scale: number; takenAt: string }
+	image: string | null;
+	notes: { id: number; text: string; elements: string[]; url: string; isFrozen: boolean }[];
+	maskedCount: number;
+	generalNote: string | null;
+	elements: Record<string, AnnotationElement>;
+}
+
 export interface PreviewResult {
 	engine: Exclude<Engine, "auto">;
 	url: string;
 	sizes: string[];
 	saved: string[];
+	annotations: (Annotation | { name: string; status: "cancelled"; result: null })[];
 	consoleErrors: number;
 	failedAsserts: number;
 	report?: string;

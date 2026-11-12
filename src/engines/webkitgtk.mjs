@@ -48,6 +48,7 @@ export const runWebkitGtk = ({
 
 	const saved = [];
 	const films = [];
+	const annotations = [];
 	let buffer = "";
 	child.stdout.setEncoding("utf8");
 	child.stdout.on("data", chunk => {
@@ -61,6 +62,7 @@ export const runWebkitGtk = ({
 			const value = JSON.parse(line.slice(tab + 1));
 			if (kind === "saved") saved.push(value);
 			else if (kind === "film") films.push(value);
+			else if (kind === "annotate") annotations.push(value);
 			else if (kind === "print") log.info(value);
 			else if (kind === "error") log.error(value);
 			else if (kind === "init-errors") reportInitErrors(value, log);
@@ -73,5 +75,5 @@ export const runWebkitGtk = ({
 		}
 	});
 	child.once("error", reject);
-	child.once("exit", code => resolve({ saved, failed: code !== 0, films }));
+	child.once("exit", code => resolve({ saved, failed: code !== 0, films, annotations }));
 });

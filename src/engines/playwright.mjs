@@ -19,14 +19,15 @@ const loadPlaywright = async () => {
 export const runPlaywright = async ({
 	engine, url, steps, init = [], size, locale,
 	colorScheme, isMotionReduced = false, out, prefix, scale,
-	snapMargin = 8, waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, timeoutMs = TIMEOUT_MS, log
+	snapMargin = 8, isHeaded = false, waitForTimeoutMs = WAIT_FOR_TIMEOUT_MS, timeoutMs = TIMEOUT_MS, log
 }) => {
 	const deadline = timeoutMs > 0 ? Date.now() + timeoutMs : Infinity;
 	const playwright = await loadPlaywright();
 	const browserType = engine === "webkit" ? playwright.webkit : playwright.chromium;
-	const browser = await browserType.launch({ channel: CHANNELS[engine], headless: true });
+	const browser = await browserType.launch({ channel: CHANNELS[engine], headless: !isHeaded });
 	const saved = [];
 	const films = [];
+	const annotations = [];
 	let failed = false;
 
 	try {
@@ -71,8 +72,68 @@ export const runPlaywright = async ({
 			films.push({ name: step.value, file: path.join(out, `${prefix}${step.value}.png`), scale: scale ?? 1, viewport: page.viewportSize(), frames });
 		}
 
+		const cutOut = async (rect, file) => {
+			try {
+				await page.screenshot({ path: file, clip: clipRect(rect, snapMargin, page.viewportSize()) });
+				return path.basename(file);
+			} catch {
+				return null;
+			}
+		}
+
+		const annotate = async step => {
+			const base = `${prefix}annotate-${step.value}`;
+			const images = {}
+			let draft = null;
+			await page.evaluate(step.start);
+			for (;;) {
+				if (page.isClosed()) {
+					annotations.push({ name: step.value, status: "cancelled", result: null });
+					return;
+				}
+				if (Date.now() > deadline) {
+					annotations.push({ name: step.value, status: "cancelled", result: null });
+					throw new Error(`timed out after ${timeoutMs} ms`);
+				}
+				const text = await page.evaluate(step.check).catch(() => null);
+				const answer = text && text !== "missing" ? JSON.parse(text) : null;
+				if (text === "missing") {
+					await page.evaluate(`${draft ? `window.${step.restoreKey} = ${JSON.stringify(draft)};` : ""}${step.start}`).catch(() => undefined);
+				} else if (answer?.status === "open") {
+					if (answer.draft) draft = answer.draft;
+					if (answer.captures?.length) {
+						await page.evaluate(step.hide).catch(() => undefined);
+						await page.waitForTimeout(80);
+						for (const capture of answer.captures) {
+							const image = await cutOut(capture.rect, path.join(out, `${base}-${capture.id}.png`));
+							if (image) images[capture.id] = image;
+						}
+						await page.evaluate(step.show).catch(() => undefined);
+					}
+				} else if (answer) {
+					const annotation = { ...answer, name: step.value, scale: scale ?? 1 }
+					if (annotation.status === "done" && annotation.result) {
+						await page.screenshot({ path: path.join(out, `${base}.png`) });
+						annotation.image = `${base}.png`;
+						await page.evaluate(step.cleanup).catch(() => undefined);
+						await page.waitForTimeout(160);
+						for (const [id, element] of Object.entries(annotation.result.elements)) {
+							element.image = element.isLive
+								? await cutOut(element.rect, path.join(out, `${base}-${id}.png`)) ?? images[id] ?? null
+								: images[id] ?? null;
+						}
+						await page.evaluate(step.dispose).catch(() => undefined);
+					}
+					annotations.push(annotation);
+					return;
+				}
+				await new Promise(resolve => setTimeout(resolve, step.pollMs));
+			}
+		}
+
 		const runStep = async step => {
 			const { kind, value } = step;
+			if (kind === "annotate") return annotate(step);
 			if (kind === "snap") {
 				const file = path.join(out, `${prefix}${value}.png`);
 				const clip = step.selector ? clipRect(await elementRect(step), snapMargin, page.viewportSize()) : undefined;
@@ -133,5 +194,5 @@ export const runPlaywright = async ({
 		await browser.close();
 	}
 
-	return { saved, failed, films }
+	return { saved, failed, films, annotations }
 }

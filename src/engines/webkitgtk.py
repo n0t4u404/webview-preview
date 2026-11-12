@@ -17,6 +17,7 @@ INPUT_SETTLE_MS = 50
 UNSUPPORTED_RESULT = "Unsupported result type"
 KEY_POLL_MS = 20
 KEY_WAIT_MS = 2000
+ANNOTATE_SETTLE_MS = 80
 KEYUPS = "window.__webviewPreviewKeyups || 0"
 KEYUP_COUNTER = "addEventListener('keyup', () => { window.__webviewPreviewKeyups = (window.__webviewPreviewKeyups || 0) + 1 }, true);"
 GDK_KEY_NAMES = {
@@ -217,10 +218,11 @@ def main():
             )
         return window.get_pixbuf()
 
-    def save(name, pixbuf):
+    def save(name, pixbuf, is_snapshot=True):
         path = os.path.join(args.out, f"{args.prefix}{name}.png")
         pixbuf.savev(path, "png", [], [])
-        emit("saved", path)
+        if is_snapshot:
+            emit("saved", path)
 
     def evaluate(code, on_value, on_error):
         def on_result(webview, result):
@@ -246,7 +248,7 @@ def main():
 
         evaluate(step["rect"], on_value, lambda error: (step_failed(f"{step['kind']}:{step['value']} failed: {error}"), next_step()))
 
-    def snap_element(step, rect):
+    def crop(name, rect, is_snapshot=True):
         pixbuf = full_pixbuf()
         width, height = view.get_allocated_width(), view.get_allocated_height()
         scale = pixbuf.get_width() / width
@@ -256,12 +258,16 @@ def main():
         right = min(width, int(rect["x"] + rect["width"] + margin + 0.999))
         bottom = min(height, int(rect["y"] + rect["height"] + margin + 0.999))
         if right <= left or bottom <= top:
-            step_failed(f"snap:{step['value']} failed: element is outside the window")
-            return next_step()
+            return None
         cropped = pixbuf.new_subpixbuf(
             int(left * scale), int(top * scale), int((right - left) * scale), int((bottom - top) * scale)
         ).copy()
-        save(step["value"], cropped)
+        save(name, cropped, is_snapshot)
+        return os.path.join(args.out, f"{args.prefix}{name}.png")
+
+    def snap_element(step, rect):
+        if not crop(step["value"], rect):
+            step_failed(f"snap:{step['value']} failed: element is outside the window")
         next_step()
 
     def point_at(step, rect):
@@ -325,6 +331,72 @@ def main():
     def next_step():
         GLib.idle_add(run_step)
 
+    def annotate(step):
+        base = f"annotate-{step['value']}"
+        images = {}
+        memory = {"draft": None}
+
+        def later(callback, ms):
+            GLib.timeout_add(ms, lambda: (callback(), False)[1])
+
+        def again():
+            later(poll, step["pollMs"])
+
+        def restart():
+            draft = memory["draft"]
+            code = (f"window.{step['restoreKey']} = {json.dumps(draft)};" if draft else "") + step["start"]
+            evaluate(code, lambda _: again(), lambda _: again())
+
+        def grab(captures):
+            def shoot():
+                for capture in captures:
+                    path = crop(f"{base}-{capture['id']}", capture["rect"], False)
+                    if path:
+                        images[capture["id"]] = os.path.basename(path)
+                evaluate(step["show"], lambda _: again(), lambda _: again())
+
+            evaluate(step["hide"], lambda _: later(shoot, ANNOTATE_SETTLE_MS), lambda _: shoot())
+
+        def finish_annotate(answer):
+            state["annotating"] = None
+            result = answer.get("result")
+            width = view.get_allocated_width()
+            answer.update(name=step["value"], scale=full_pixbuf().get_width() / width if width else 1)
+            if answer.get("status") != "done" or not result:
+                emit("annotate", answer)
+                return next_step()
+            save(base, full_pixbuf(), False)
+            answer["image"] = f"{args.prefix}{base}.png"
+
+            def crops():
+                for element_id, element in result["elements"].items():
+                    path = crop(f"{base}-{element_id}", element["rect"], False) if element.get("isLive") else None
+                    element["image"] = os.path.basename(path) if path else images.get(element_id)
+                emit("annotate", answer)
+                evaluate(step["dispose"], lambda _: next_step(), lambda _: next_step())
+
+            evaluate(step["cleanup"], lambda _: later(crops, ANNOTATE_SETTLE_MS * 2), lambda _: crops())
+
+        def poll():
+            def on_value(text):
+                if text == "missing":
+                    return restart()
+                if not text or text == "null":
+                    return again()
+                answer = json.loads(text)
+                if answer.get("status") != "open":
+                    return finish_annotate(answer)
+                if answer.get("draft"):
+                    memory["draft"] = answer["draft"]
+                if answer.get("captures"):
+                    return grab(answer["captures"])
+                again()
+
+            evaluate(step["check"], on_value, lambda _: again())
+
+        state["annotating"] = step["value"]
+        evaluate(step["start"], lambda _: poll(), lambda error: (step_failed(f"annotate failed: {error}"), next_step()))
+
     def run_step():
         if state["index"] >= len(steps):
             return finish()
@@ -340,6 +412,8 @@ def main():
                 next_step()
         elif kind == "film":
             film(step)
+        elif kind == "annotate":
+            annotate(step)
         elif kind in ("js", "jsnow"):
             evaluate(value, lambda _: None, lambda error: None if UNSUPPORTED_RESULT in error else emit("error", f"js failed: {error}"))
             if kind == "js":
@@ -398,6 +472,8 @@ def main():
             GLib.timeout_add(args.load_settle_ms, start_steps)
 
     def on_load_failed(_view, _event, uri, error):
+        if error.matches(WebKit2.NetworkError.quark(), WebKit2.NetworkError.CANCELLED):
+            return False
         emit("error", f"failed to load {uri}: {error.message}")
         return finish(failed=True)
 
@@ -405,6 +481,16 @@ def main():
         emit("error", f"timed out after {args.timeout_ms} ms")
         return finish(failed=True)
 
+    def on_close(*_):
+        if state.get("annotating"):
+            emit("annotate", {"name": state["annotating"], "status": "cancelled", "result": None})
+        skipped = [step for step in steps[state["index"]:] if not step.get("isInternal")]
+        if skipped:
+            emit("error", f"window closed — {len(skipped)} step(s) not run")
+        finish(failed=bool(skipped))
+        return True
+
+    window.connect("delete-event", on_close)
     view.connect("load-changed", on_load_changed)
     view.connect("load-failed", on_load_failed)
     view.load_uri(args.url)

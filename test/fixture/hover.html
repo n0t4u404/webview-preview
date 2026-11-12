@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>hover</title>
+<style>
+	body { margin: 0; padding: 24px 24px 24px 120px; font: 16px sans-serif }
+	#target, #away { display: inline-block; padding: 8px 12px; border: 1px solid #888 }
+	#tip { margin-top: 8px; padding: 6px 10px; background: #222; color: #fff; width: max-content }
+	#spin { width: 20px; height: 20px; margin-top: 16px; background: #0a77ff; animation: spin 1s linear infinite }
+	@keyframes spin { to { transform: rotate(360deg) } }
+</style>
+</head>
+<body>
+<span id="target">Hover me</span>
+<span id="away">Somewhere else</span>
+<div id="tip" hidden>A tooltip that closes when the mouse leaves</div>
+<div id="spin"></div>
+<script>
+	const target = document.querySelector("#target");
+	const tip = document.querySelector("#tip");
+	target.addEventListener("mouseenter", () => { tip.hidden = false });
+	target.addEventListener("mouseleave", () => { tip.hidden = true });
+</script>
+</body>
+</html>

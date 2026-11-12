@@ -16,7 +16,7 @@ export const runTimeoutMs = (steps, waitForTimeoutMs) => TIMEOUT_MS + steps.redu
 					: STEP_BUDGET_MS
 ), 0);
 
-const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "focusorder", "resize", "key", "type", "hover", "click", "offline", "online", "latency", "film"]);
+const STEP_KINDS = new Set(["js", "jsnow", "wait", "waitfor", "snap", "print", "measure", "assert", "focusorder", "resize", "key", "type", "hover", "click", "offline", "online", "latency", "film", "annotate"]);
 export const ASSERT_MARKER = "__webviewPreviewAssert:";
 export const FOCUS_MARKER = "__webviewPreviewFocus:";
 const FOCUS_ORDER_DEFAULT = 20;
@@ -235,6 +235,11 @@ export const parseSteps = steps => steps.flatMap(step => {
 		return { kind, value, check: waitForExpression(selector, isGone) }
 	}
 	if (kind === "focusorder") return focusOrderSteps(value, step);
+	if (kind === "annotate") {
+		const name = value || "annotate";
+		if (!/^[\w.-]+$/.test(name)) throw new Error(`annotate needs a name of letters, digits, "-", "_" or ".", got "${step}"`);
+		return { kind, value: name }
+	}
 	if (kind === "film") return filmStep(value, step);
 	if (NETWORK_STEPS.has(kind)) return networkStep(kind, value, step);
 	if (kind === "assert") {
