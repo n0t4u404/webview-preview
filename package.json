@@ -1,6 +1,6 @@
 {
 	"name": "webview-preview",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"description": "Check a Tauri or Wails UI in the engine it really runs on — WebKitGTK, Edge (WebView2), WebKit — from the command line: steps, snapshots, baselines, and an annotate window to point at elements and say what to change.",
 	"license": "MIT",
 	"author": "n0t4u404",
